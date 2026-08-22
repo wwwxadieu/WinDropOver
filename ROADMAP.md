@@ -10,9 +10,10 @@ hàng trong bảng lộ trình gốc, cùng tiêu chí hoàn thành gốc và tr
 - [x] Khung solution `.NET`/WPF theo đúng cấu trúc thư mục module ở mục 3.2 (`src/Core`,
       `Data`, `Interop`, `App`).
 - [x] Cấu hình build (`.csproj` cho từng project, `WinClipboard.sln`).
-- [ ] **Chưa xác nhận được "project chạy được"** — `WinClipboard.App` chưa từng `dotnet build`
-      thành công vì môi trường hiện thực không có Windows/WPF SDK. Đây là việc đầu tiên cần làm
-      trên máy Windows thật.
+- [x] **Build được xác nhận** — CI (`windows-latest`) build sạch toàn bộ solution kể cả
+      `WinClipboard.App`, 42/42 test pass.
+- [ ] **Chưa xác nhận "cửa sổ overlay hiện/ẩn bằng phím tắt"** — phần này cần chạy app thật,
+      CI chỉ build chứ không chạy được UI.
 
 ## Giai đoạn 1 — MVP lịch sử clipboard
 
@@ -99,9 +100,14 @@ lỗi theo từng item.
 - [x] Khởi động cùng Windows (`StartupRegistration` — ghi registry Run key).
 - [x] Trang cài đặt đầy đủ (`SettingsWindow` — rìa kích hoạt, phím giữ, tự ẩn bubble, giới hạn
       lịch sử, tự xoá dữ liệu nhạy cảm, khởi động cùng Windows).
-- [ ] **Ký số ứng dụng** — không làm được (cần chứng chỉ code-signing thật + máy Windows).
-- [ ] **Đóng gói installer** (.exe/.msi/winget) — chưa có, cần quyết định kênh phân phối trước
-      (xem mục 7 kế hoạch gốc, câu hỏi còn để ngỏ).
+- [x] **Đóng gói .exe tự động** — [`.github/workflows/release-build.yml`](.github/workflows/release-build.yml)
+      publish `WinClipboard.App` dạng self-contained win-x64 single-file và đính kèm vào GitHub
+      Release (tự chạy khi push tag `v*`, hoặc chạy tay qua `workflow_dispatch`).
+- [ ] **Ký số ứng dụng** — chưa có, cần chứng chỉ code-signing thật. Chưa ký thì SmartScreen sẽ
+      cảnh báo khi người dùng chạy lần đầu, và rủi ro "bị AV gắn cờ nhầm" trong bảng mục 6 vẫn
+      còn nguyên (app cài low-level keyboard hook nên càng dễ bị nghi).
+- [ ] **Installer thật** (.msi/winget) — hiện mới chỉ có .exe đóng gói sẵn trong file zip, chưa
+      có luồng cài/gỡ đúng nghĩa; cần quyết định kênh phân phối trước (mục 7 kế hoạch gốc).
 - [ ] Danh sách loại trừ theo ứng dụng nguồn (`AppSettings.ExcludedSourceApps` có trong model
       nhưng **`ClipboardMonitorService` chưa đọc field này để thực sự bỏ qua** — cần nối dây
       thêm một điều kiện kiểm tra `SourceApp` trước khi lưu).
@@ -123,8 +129,15 @@ kế hoạch gốc cố tình để ngỏ cho người dùng/chủ dự án quy�
 ## Tổng kết mức độ hoàn thành
 
 Toàn bộ **logic nghiệp vụ** (data model, dedup, Quick Actions, edge/drag detection, settings)
-đã hiện thực đầy đủ và **được unit test xác nhận đúng (42/42 test pass)**. Toàn bộ **giao diện
-và tích hợp Windows** (WPF windows, hook, hotkey, clipboard, drag-drop, WinRT Share) đã viết
-đầy đủ theo đúng kiến trúc kế hoạch mô tả nhưng **chưa qua một lần build hay chạy thử nào** — vì
-vậy bước tiếp theo bắt buộc, trước khi làm bất cứ việc gì khác, là mở solution trên Windows,
-`dotnet build`, và sửa các lỗi biên dịch/runtime sẽ xuất hiện.
+đã hiện thực đầy đủ và **được unit test xác nhận đúng (42/42 test pass trên Windows CI)**. Toàn
+bộ **giao diện và tích hợp Windows** (WPF windows, hook, hotkey, clipboard, drag-drop, WinRT
+Share) đã viết đầy đủ theo đúng kiến trúc kế hoạch và **compile sạch trên Windows**.
+
+Ranh giới hiện tại nằm ở chỗ khác: **chưa ai chạy app thật lần nào.** Mọi tiêu chí hoàn thành
+trong kế hoạch gốc đều được phát biểu dưới dạng hành vi ("kéo tệp vào bubble... không rơi/lỗi dữ
+liệu", "phát hiện rìa đáng tin cậy trên Explorer và ít nhất 2 ứng dụng khác"), mà hành vi thì
+không thể xác nhận bằng compiler hay unit test — chỉ có thể xác nhận bằng cách cài và dùng thử.
+
+Vì vậy bước tiếp theo là **dogfooding**: cài bản build lên một máy Windows thật, dùng vài ngày,
+và đối chiếu lại từng tiêu chí hoàn thành ở các giai đoạn 1–5 phía trên. Riêng heuristic "đang
+kéo tệp" (rủi ro Cao trong bảng mục 6 kế hoạch gốc) chỉ có thể đánh giá được theo cách này.
