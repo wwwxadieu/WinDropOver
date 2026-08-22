@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using WinClipboard.Core.Models;
 using WinClipboard.Data;
 using Xunit;
@@ -17,6 +18,9 @@ public class ShelfRepositoryTests : IDisposable
 
     public void Dispose()
     {
+        // See ClipboardRepositoryTests.Dispose: pooled sqlite handles keep the file open,
+        // which blocks File.Delete on Windows.
+        SqliteConnection.ClearAllPools();
         if (File.Exists(_dbPath)) File.Delete(_dbPath);
     }
 
