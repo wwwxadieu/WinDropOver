@@ -1,0 +1,79 @@
+<Window x:Class="WinClipboard.App.Views.HistoryOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WinClipboard"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        SizeToContent="Height"
+        Width="380"
+        MaxHeight="600"
+        Deactivated="OnDeactivated">
+    <Border Style="{StaticResource OverlayChromeStyle}" Padding="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,8">
+                <TextBox x:Name="SearchBox" Style="{StaticResource SearchBoxStyle}" TextChanged="OnSearchTextChanged" />
+                <TextBlock x:Name="SearchPlaceholder" Text="Tìm trong lịch sử..." Foreground="{StaticResource TextSecondaryBrush}"
+                           Margin="10,7" IsHitTestVisible="False" />
+            </Grid>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                <RadioButton x:Name="FilterAll" Content="Tất cả" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" IsChecked="True" Checked="OnFilterChanged" Margin="0,0,4,0" />
+                <RadioButton x:Name="FilterText" Content="Văn bản" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" Checked="OnFilterChanged" Margin="0,0,4,0" />
+                <RadioButton x:Name="FilterImage" Content="Ảnh" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" Checked="OnFilterChanged" Margin="0,0,4,0" />
+                <RadioButton x:Name="FilterFile" Content="Tệp" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" Checked="OnFilterChanged" Margin="0,0,4,0" />
+                <RadioButton x:Name="FilterLink" Content="Liên kết" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" Checked="OnFilterChanged" />
+            </StackPanel>
+
+            <Grid Grid.Row="2">
+                <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0" MaxHeight="440"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         MouseLeftButtonUp="OnItemClicked">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="18" VerticalAlignment="Center" Margin="0,0,10,0" />
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Preview}" Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding SourceAndTime}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                   FontSize="11" Margin="0,2,0,0" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                        <ToggleButton IsChecked="{Binding IsPinned, Mode=OneWay}" Content="&#128204;"
+                                                      Style="{StaticResource IconToggleButtonStyle}" Click="OnPinClicked" Margin="0,0,4,0" />
+                                        <Button Content="&#10005;" Style="{StaticResource IconButtonStyle}" Click="OnDeleteClicked" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel x:Name="EmptyState" Visibility="Collapsed" Margin="0,24" HorizontalAlignment="Center">
+                    <TextBlock Text="Chưa có mục nào trong lịch sử" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Center" />
+                    <TextBlock Text="Sao chép văn bản, ảnh hoặc tệp để bắt đầu" Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="11" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

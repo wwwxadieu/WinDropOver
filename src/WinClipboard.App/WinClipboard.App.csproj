@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Versioned TFM (rather than plain net8.0-windows) so the SDK generates CsWinRT
+         projections for Windows.ApplicationModel.DataTransfer, used by the Share quick action. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <!-- Lets `dotnet restore`/`build` evaluate this Windows-targeted project from non-Windows
+         hosts (this repo was assembled in a Linux sandbox); irrelevant on a real Windows build. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>WinClipboard</AssemblyName>
+    <RootNamespace>WinClipboard.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WinClipboard.Core\WinClipboard.Core.csproj" />
+    <ProjectReference Include="..\WinClipboard.Data\WinClipboard.Data.csproj" />
+    <ProjectReference Include="..\WinClipboard.Interop\WinClipboard.Interop.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,55 @@
+<Window x:Class="WinClipboard.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cài đặt WinClipboard"
+        Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Background="#202020"
+        ResizeMode="NoResize">
+    <StackPanel Margin="20">
+        <TextBlock Text="Kích hoạt Shelf" FontWeight="Bold" Foreground="White" Margin="0,0,0,8" />
+
+        <TextBlock Text="Rìa màn hình kích hoạt bubble" Foreground="#B3FFFFFF" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <CheckBox x:Name="EdgeLeftCheck" Content="Trái" Foreground="White" Margin="0,0,12,0" />
+            <CheckBox x:Name="EdgeRightCheck" Content="Phải" Foreground="White" Margin="0,0,12,0" />
+            <CheckBox x:Name="EdgeTopCheck" Content="Trên" Foreground="White" Margin="0,0,12,0" />
+            <CheckBox x:Name="EdgeBottomCheck" Content="Dưới" Foreground="White" />
+        </StackPanel>
+
+        <CheckBox x:Name="EdgeTriggerCheck" Content="Bật kích hoạt bằng kéo ra rìa màn hình" Foreground="White" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Độ rộng vùng nóng (px):" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="EdgeMarginBox" Width="60" />
+        </StackPanel>
+
+        <CheckBox x:Name="HotkeyTriggerCheck" Content="Bật kích hoạt bằng giữ phím trong lúc kéo" Foreground="White" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <TextBlock Text="Phím giữ:" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <ComboBox x:Name="HoldKeyCombo" Width="160" />
+        </StackPanel>
+
+        <TextBlock Text="Bubble" FontWeight="Bold" Foreground="White" Margin="0,0,0,8" />
+        <CheckBox x:Name="AutoHideCheck" Content="Tự ẩn bubble khi rảnh" Foreground="White" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <TextBlock Text="Sau (giây):" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="AutoHideSecondsBox" Width="60" />
+        </StackPanel>
+
+        <TextBlock Text="Lịch sử clipboard" FontWeight="Bold" Foreground="White" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Giới hạn số mục:" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="MaxHistoryBox" Width="70" />
+        </StackPanel>
+        <CheckBox x:Name="PurgeEnabledCheck" Content="Tự động xoá dữ liệu chưa ghim sau (giờ):" Foreground="White" Margin="0,0,8,4" />
+        <TextBox x:Name="PurgeHoursBox" Width="70" HorizontalAlignment="Left" Margin="0,0,0,16" />
+
+        <TextBlock Text="Hệ thống" FontWeight="Bold" Foreground="White" Margin="0,0,0,8" />
+        <CheckBox x:Name="StartWithWindowsCheck" Content="Khởi động cùng Windows" Foreground="White" Margin="0,0,0,20" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="CancelButton" Content="Huỷ" Width="80" Margin="0,0,8,0" Click="OnCancelClicked" />
+            <Button x:Name="SaveButton" Content="Lưu" Width="80" Click="OnSaveClicked" />
+        </StackPanel>
+    </StackPanel>
+</Window>
