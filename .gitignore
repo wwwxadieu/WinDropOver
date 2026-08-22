@@ -1,0 +1,18 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+
+# Runtime data this app writes under the user's LOCALAPPDATA — never part of the repo
+*.db
+*.db-shm
+*.db-wal

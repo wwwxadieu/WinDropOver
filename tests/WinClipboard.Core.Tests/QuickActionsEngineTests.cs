@@ -1,0 +1,152 @@
+using System.IO.Compression;
+using WinClipboard.Core.Models;
+using WinClipboard.Core.Services;
+using WinClipboard.Core.Tests.Fakes;
+using Xunit;
+
+namespace WinClipboard.Core.Tests;
+
+public class QuickActionsEngineTests : IDisposable
+{
+    private readonly string _tempRoot;
+    private readonly InMemoryShelfRepository _shelfRepository = new();
+    private readonly FakeClipboardWriter _clipboardWriter = new();
+    private readonly FakeShellLauncher _shellLauncher = new();
+    private readonly QuickActionsEngine _engine;
+
+    public QuickActionsEngineTests()
+    {
+        _tempRoot = Directory.CreateTempSubdirectory("winclipboard-tests-").FullName;
+        _engine = new QuickActionsEngine(_shelfRepository, _clipboardWriter, _shellLauncher);
+    }
+
+    public void Dispose() => Directory.Delete(_tempRoot, recursive: true);
+
+    private string NewSourceFile(string name, string content = "content")
+    {
+        var path = Path.Combine(_tempRoot, "source", name);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    private async Task<long> NewShelfWithFileAsync(string filePath)
+    {
+        var shelfId = await _shelfRepository.CreateShelfAsync(new Shelf { Name = "Test", ColorHex = "#FF0000" });
+        await _shelfRepository.AddItemAsync(new ShelfItem
+        {
+            ShelfId = shelfId,
+            Type = ShelfItemType.File,
+            FilePath = filePath,
+            AddedAt = DateTimeOffset.UtcNow
+        });
+        return shelfId;
+    }
+
+    [Fact]
+    public async Task CopyToFolder_CopiesFileAndKeepsOriginal()
+    {
+        var source = NewSourceFile("a.txt");
+        var destFolder = Path.Combine(_tempRoot, "dest");
+        Directory.CreateDirectory(destFolder);
+        var shelfId = await NewShelfWithFileAsync(source);
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.CopyToFolder, destFolder);
+
+        Assert.True(result.AllSucceeded);
+        Assert.True(File.Exists(source));
+        Assert.True(File.Exists(Path.Combine(destFolder, "a.txt")));
+    }
+
+    [Fact]
+    public async Task MoveToFolder_MovesFileAndRemovesOriginal()
+    {
+        var source = NewSourceFile("b.txt");
+        var destFolder = Path.Combine(_tempRoot, "dest");
+        Directory.CreateDirectory(destFolder);
+        var shelfId = await NewShelfWithFileAsync(source);
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.MoveToFolder, destFolder);
+
+        Assert.True(result.AllSucceeded);
+        Assert.False(File.Exists(source));
+        Assert.True(File.Exists(Path.Combine(destFolder, "b.txt")));
+    }
+
+    [Fact]
+    public async Task Zip_PacksAllFilesIntoOneArchive()
+    {
+        var f1 = NewSourceFile("one.txt", "one");
+        var f2 = NewSourceFile("two.txt", "two");
+        var destFolder = Path.Combine(_tempRoot, "dest");
+        Directory.CreateDirectory(destFolder);
+
+        var shelfId = await _shelfRepository.CreateShelfAsync(new Shelf { Name = "Zip", ColorHex = "#00FF00" });
+        await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = f1, AddedAt = DateTimeOffset.UtcNow });
+        await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = f2, AddedAt = DateTimeOffset.UtcNow });
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.Zip, destFolder);
+
+        Assert.True(result.AllSucceeded);
+        var zipFile = Directory.GetFiles(destFolder, "*.zip").Single();
+        using var archive = ZipFile.OpenRead(zipFile);
+        Assert.Equal(2, archive.Entries.Count);
+        Assert.Contains(archive.Entries, e => e.Name == "one.txt");
+        Assert.Contains(archive.Entries, e => e.Name == "two.txt");
+    }
+
+    [Fact]
+    public async Task BatchAction_OneItemFails_OthersStillSucceed()
+    {
+        var good = NewSourceFile("good.txt");
+        var missing = Path.Combine(_tempRoot, "source", "missing.txt"); // never created
+        var destFolder = Path.Combine(_tempRoot, "dest");
+        Directory.CreateDirectory(destFolder);
+
+        var shelfId = await _shelfRepository.CreateShelfAsync(new Shelf { Name = "Mixed", ColorHex = "#0000FF" });
+        var goodId = await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = good, AddedAt = DateTimeOffset.UtcNow });
+        var missingId = await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = missing, AddedAt = DateTimeOffset.UtcNow });
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.CopyToFolder, destFolder);
+
+        Assert.False(result.AllSucceeded);
+        Assert.Equal(1, result.SuccessCount);
+        Assert.Equal(1, result.FailureCount);
+        Assert.True(result.ItemResults.Single(r => r.ShelfItemId == goodId).Succeeded);
+        var missingResult = result.ItemResults.Single(r => r.ShelfItemId == missingId);
+        Assert.False(missingResult.Succeeded);
+        Assert.NotNull(missingResult.ErrorMessage);
+        Assert.True(File.Exists(Path.Combine(destFolder, "good.txt")));
+    }
+
+    [Fact]
+    public async Task CopyToClipboard_FileItem_WritesFilePath()
+    {
+        var source = NewSourceFile("clip.txt");
+        var shelfId = await NewShelfWithFileAsync(source);
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.CopyToClipboard);
+
+        Assert.True(result.AllSucceeded);
+        Assert.Single(_clipboardWriter.WrittenFileBatches);
+        Assert.Equal(source, _clipboardWriter.WrittenFileBatches[0][0]);
+    }
+
+    [Fact]
+    public async Task CopyToClipboard_TextItem_WritesText()
+    {
+        var shelfId = await _shelfRepository.CreateShelfAsync(new Shelf { Name = "Text", ColorHex = "#FFFFFF" });
+        await _shelfRepository.AddItemAsync(new ShelfItem
+        {
+            ShelfId = shelfId,
+            Type = ShelfItemType.Text,
+            TextContent = "hello",
+            AddedAt = DateTimeOffset.UtcNow
+        });
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.CopyToClipboard);
+
+        Assert.True(result.AllSucceeded);
+        Assert.Contains("hello", _clipboardWriter.WrittenText);
+    }
+}
