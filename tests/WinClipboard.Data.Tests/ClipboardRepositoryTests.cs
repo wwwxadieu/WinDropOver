@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using WinClipboard.Core.Models;
 using WinClipboard.Core.Utils;
 using WinClipboard.Data;
@@ -18,6 +19,10 @@ public class ClipboardRepositoryTests : IDisposable
 
     public void Dispose()
     {
+        // Microsoft.Data.Sqlite pools connections, so disposing one returns it to the pool
+        // with the sqlite3 file handle still open. Windows refuses to delete an open file
+        // (Linux happily unlinks it), so the temp DB must be released explicitly here.
+        SqliteConnection.ClearAllPools();
         if (File.Exists(_dbPath)) File.Delete(_dbPath);
     }
 
