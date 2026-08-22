@@ -7,19 +7,19 @@ tình trạng từng giai đoạn so với kế hoạch gốc.
 ## Trạng thái hiện tại
 
 Toàn bộ 7 giai đoạn trong kế hoạch đã có code tương ứng (xem ROADMAP.md để biết chi tiết từng
-mục). Điểm quan trọng nhất cần biết trước khi dùng: **dự án này được hiện thực trong một sandbox
-Linux, không có Windows hay WPF SDK để build/chạy thử.**
+mục).
 
-- `WinClipboard.Core`, `WinClipboard.Data`, `WinClipboard.Interop` — build sạch (0 lỗi) và có
-  **42 unit test pass** trên Linux (`dotnet test`), vì các project này chỉ target `net8.0`/
-  `net8.0-windows` (không cần WPF SDK để compile, kể cả các lệnh gọi P/Invoke Win32 trong
-  `Interop`).
-- `WinClipboard.App` (giao diện WPF) — đã viết đầy đủ (4 cửa sổ, tray icon, toàn bộ service nối
-  dây trong `App.xaml.cs`) nhưng **chưa từng được build hay chạy thử**, vì
-  `Microsoft.NET.Sdk.WindowsDesktop` (SDK cần để compile XAML/WPF) chỉ tồn tại trên Windows.
-  Việc đầu tiên cần làm trên máy Windows thật là `dotnet build` project này và sửa các lỗi biên
-  dịch — chắc chắn sẽ có vài lỗi nhỏ (tên thuộc tính XAML, using còn thiếu...) vì chưa qua
-  compiler lần nào.
+**Toàn bộ solution — kể cả `WinClipboard.App` (WPF) — build sạch và 42/42 unit test pass trên
+Windows**, được xác nhận tự động bởi GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml),
+chạy trên `windows-latest`) ở mọi push/PR vào `main`.
+
+Lưu ý về cách dự án được hiện thực: code ban đầu viết trong một sandbox Linux không có WPF SDK,
+nên phần giao diện chỉ được compile lần đầu khi CI chạy. Hai lỗi thật đã phát hiện và sửa qua CI:
+xung đột namespace WinForms/WPF, và SQLite connection pool giữ file khiến test teardown fail trên
+Windows. Từ đó tới nay CI xanh liên tục.
+
+**Điều còn lại chưa được xác nhận: chưa ai chạy thử app trong thực tế.** Build được không có
+nghĩa là mọi hành vi runtime đều đúng — xem mục giới hạn bên dưới.
 
 ## Build & chạy (trên Windows)
 
@@ -46,17 +46,22 @@ dotnet test tests/WinClipboard.Data.Tests
 | `src/WinClipboard.Core` | Model + business logic thuần (Quick Actions engine, edge detection, drag threshold, settings model) — không đụng Windows API | ✅ |
 | `src/WinClipboard.Data` | SQLite (`Microsoft.Data.Sqlite`) cho lịch sử clipboard + shelf, JSON settings store | ✅ |
 | `src/WinClipboard.Interop` | Toàn bộ P/Invoke Win32: low-level mouse/keyboard hook, hotkey, clipboard listener, layered window, DPI, giả lập Ctrl+V | ✅ (chỉ compile — hook/API thật cần chạy trên Windows) |
-| `src/WinClipboard.App` | WPF: tray icon, History overlay, Bubble, Shelf Panel, Settings | ❌ (cần Windows) |
+| `src/WinClipboard.App` | WPF: tray icon, History overlay, Bubble, Shelf Panel, Settings | ❌ (cần Windows — CI build project này) |
 | `tests/WinClipboard.Core.Tests`, `tests/WinClipboard.Data.Tests` | 42 xUnit test | ✅ |
+
+Cột cuối chỉ nói về việc *phát triển cục bộ trên Linux*; trên Windows (và trên CI) toàn bộ
+solution build được.
 
 ## Giới hạn quan trọng cần biết trước khi tiếp tục phát triển
 
-- **`WinClipboard.App` chưa build-verify.** Đây là rủi ro lớn nhất — hãy dành buổi làm việc đầu
-  tiên trên Windows để `dotnet build` và sửa lỗi biên dịch trước khi thêm tính năng mới.
+- **Chưa ai chạy thử app thật.** Build xanh chỉ chứng minh code hợp lệ về mặt biên dịch, chưa
+  chứng minh hành vi runtime đúng. Toàn bộ phần phụ thuộc hành vi Windows thật — low-level hook có
+  bắt đúng thao tác kéo tệp không, bubble có hiện đúng vị trí trên đa màn hình/đa DPI không,
+  drag-drop giữa các ứng dụng có hoạt động không, dán lại có đúng cửa sổ đích không — **đều chưa
+  được kiểm chứng**. Đây giờ là rủi ro lớn nhất còn lại.
 - **Share quick action** (`Services/ShareUI.cs`) dùng `IDataTransferManagerInterop` + WinRT
-  `DataTransferManager` theo đúng pattern Microsoft công bố cho desktop app, nhưng đây là phần
-  rủi ro nhất trong toàn bộ code vì WinRT interop rất dễ sai chi tiết nhỏ mà chỉ phát hiện được
-  lúc chạy — test kỹ trước khi dựa vào nó.
+  `DataTransferManager` theo đúng pattern Microsoft công bố cho desktop app. Nay đã compile được,
+  nhưng WinRT interop rất dễ sai chi tiết nhỏ mà chỉ lộ ra lúc chạy — test kỹ trước khi dựa vào nó.
 - **Tray icon** hiện vẽ runtime (hình tròn màu accent) thay vì dùng file `.ico` thật — thay bằng
   bộ nhận diện thương hiệu thật khi đã quyết định (xem mục 7 kế hoạch gốc: "Tên sản phẩm chính
   thức và bộ nhận diện thương hiệu").
