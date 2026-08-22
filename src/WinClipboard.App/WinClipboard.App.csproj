@@ -23,4 +23,16 @@
     <ProjectReference Include="..\WinClipboard.Interop\WinClipboard.Interop.csproj" />
   </ItemGroup>
 
+  <!--
+    UseWindowsForms adds implicit global usings for System.Windows.Forms and System.Drawing
+    project-wide (needed only by Services/TrayIconService.cs, for NotifyIcon). Those collide
+    with same-named WPF types (Button, Point, DragEventArgs, MouseEventArgs, ...) everywhere
+    else in the project. TrayIconService.cs has its own explicit `using` for both namespaces,
+    so removing the implicit ones here only affects unqualified lookups elsewhere.
+  -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
 </Project>
