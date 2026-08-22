@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-and-test:
+    # windows-latest ships the full .NET + Windows Desktop (WPF) SDK, which is required to
+    # compile WinClipboard.App — that project cannot be built on Linux/macOS runners.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore WinClipboard.sln
+
+      - name: Build (full solution, including WinClipboard.App)
+        run: dotnet build WinClipboard.sln -c Release --no-restore
+
+      - name: Test WinClipboard.Core.Tests
+        run: dotnet test tests/WinClipboard.Core.Tests -c Release --no-build --verbosity normal
+
+      - name: Test WinClipboard.Data.Tests
+        run: dotnet test tests/WinClipboard.Data.Tests -c Release --no-build --verbosity normal
