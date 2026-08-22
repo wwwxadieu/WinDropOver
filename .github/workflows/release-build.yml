@@ -1,0 +1,58 @@
+name: Release Build
+
+# Publishes WinClipboard.App as a self-contained win-x64 executable and uploads it as an asset
+# on the matching GitHub Release. Runs automatically when a v* tag is pushed, or manually via
+# workflow_dispatch (useful for attaching a build to a release that already exists, like
+# v0.1.0-alpha, which was published before this workflow existed).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to attach the build to (e.g. v0.1.0-alpha)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore WinClipboard.sln
+
+      - name: Publish WinClipboard.App (self-contained win-x64)
+        run: >
+          dotnet publish src/WinClipboard.App/WinClipboard.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      - name: Zip published output
+        shell: pwsh
+        run: Compress-Archive -Path publish\* -DestinationPath WinClipboard-win-x64.zip
+
+      - name: Resolve target tag
+        id: tag
+        shell: pwsh
+        run: |
+          $t = "${{ inputs.tag }}"
+          if ([string]::IsNullOrEmpty($t)) { $t = "${{ github.ref_name }}" }
+          "tag=$t" >> $env:GITHUB_OUTPUT
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" WinClipboard-win-x64.zip --clobber
