@@ -120,6 +120,73 @@ public class QuickActionsEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task ExecuteOnItemsAsync_OnlyTouchesTheGivenItems()
+    {
+        var dragged = NewSourceFile("dragged.txt");
+        var untouched = NewSourceFile("untouched.txt");
+        var destFolder = Path.Combine(_tempRoot, "dest");
+        Directory.CreateDirectory(destFolder);
+
+        var shelfId = await _shelfRepository.CreateShelfAsync(new Shelf { Name = "S", ColorHex = "#123456" });
+        await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = dragged, AddedAt = DateTimeOffset.UtcNow });
+        await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = untouched, AddedAt = DateTimeOffset.UtcNow });
+
+        var subset = (await _shelfRepository.GetItemsAsync(shelfId))
+            .Where(i => i.FilePath == dragged)
+            .ToList();
+
+        var result = await _engine.ExecuteOnItemsAsync(subset, QuickActionType.CopyToFolder, destFolder);
+
+        Assert.True(result.AllSucceeded);
+        Assert.Single(result.ItemResults);
+        Assert.True(File.Exists(Path.Combine(destFolder, "dragged.txt")));
+        Assert.False(File.Exists(Path.Combine(destFolder, "untouched.txt")));
+    }
+
+    [Fact]
+    public async Task ExecuteOnItemsAsync_Zip_PacksOnlyTheGivenItems()
+    {
+        var a = NewSourceFile("a.txt");
+        var b = NewSourceFile("b.txt");
+        var destFolder = Path.Combine(_tempRoot, "dest");
+        Directory.CreateDirectory(destFolder);
+
+        var shelfId = await _shelfRepository.CreateShelfAsync(new Shelf { Name = "S", ColorHex = "#123456" });
+        await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = a, AddedAt = DateTimeOffset.UtcNow });
+        await _shelfRepository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.File, FilePath = b, AddedAt = DateTimeOffset.UtcNow });
+
+        var subset = (await _shelfRepository.GetItemsAsync(shelfId)).Where(i => i.FilePath == a).ToList();
+        var result = await _engine.ExecuteOnItemsAsync(subset, QuickActionType.Zip, destFolder);
+
+        Assert.True(result.AllSucceeded);
+        using var archive = ZipFile.OpenRead(Directory.GetFiles(destFolder, "*.zip").Single());
+        Assert.Equal("a.txt", archive.Entries.Single().Name);
+    }
+
+    [Fact]
+    public async Task ExecuteOnItemsAsync_EmptySelection_SucceedsWithNothingDone()
+    {
+        var result = await _engine.ExecuteOnItemsAsync([], QuickActionType.CopyToClipboard);
+
+        Assert.True(result.AllSucceeded);
+        Assert.Empty(result.ItemResults);
+    }
+
+    [Fact]
+    public async Task Zip_ArchiveCannotBeCreated_ReportsFailurePerItemInsteadOfThrowing()
+    {
+        var source = NewSourceFile("z.txt");
+        var shelfId = await NewShelfWithFileAsync(source);
+        var missingFolder = Path.Combine(_tempRoot, "no", "such", "folder"); // never created
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.Zip, missingFolder);
+
+        Assert.False(result.AllSucceeded);
+        Assert.Equal(1, result.FailureCount);
+        Assert.NotNull(result.ItemResults.Single().ErrorMessage);
+    }
+
+    [Fact]
     public async Task CopyToClipboard_FileItem_WritesFilePath()
     {
         var source = NewSourceFile("clip.txt");

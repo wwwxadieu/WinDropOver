@@ -9,7 +9,7 @@ tình trạng từng giai đoạn so với kế hoạch gốc.
 Toàn bộ 7 giai đoạn trong kế hoạch đã có code tương ứng (xem ROADMAP.md để biết chi tiết từng
 mục).
 
-**Toàn bộ solution — kể cả `WinClipboard.App` (WPF) — build sạch và 42/42 unit test pass trên
+**Toàn bộ solution — kể cả `WinClipboard.App` (WPF) — build sạch và 68/68 unit test pass trên
 Windows**, được xác nhận tự động bởi GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml),
 chạy trên `windows-latest`) ở mọi push/PR vào `main`.
 

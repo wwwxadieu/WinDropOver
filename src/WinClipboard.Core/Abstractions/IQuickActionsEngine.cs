@@ -14,4 +14,15 @@ public interface IQuickActionsEngine
         QuickActionType actionType,
         string? targetPath = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Same, but over an explicit set of items rather than a whole shelf — what dropping a
+    /// selection onto an action tile needs, since that acts on what was dragged and leaves the
+    /// rest of the shelf alone.
+    /// </summary>
+    Task<QuickActionResult> ExecuteOnItemsAsync(
+        IReadOnlyList<ShelfItem> items,
+        QuickActionType actionType,
+        string? targetPath = null,
+        CancellationToken ct = default);
 }

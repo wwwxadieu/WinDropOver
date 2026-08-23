@@ -330,10 +330,39 @@
     </Style>
 
     <!-- Quick Actions: wide, evenly-sized targets that read as buttons rather than bare labels. -->
+    <!--
+        Quick Action tiles are drop targets, and the code-behind highlights the one under the
+        cursor by setting Background locally. The shared Button template would lose that: its
+        IsMouseOver trigger sets the Border's Background by TargetName, which outranks the
+        TemplateBinding. So these tiles get hover/press feedback through Opacity instead, leaving
+        Background free for the drop highlight to win.
+    -->
     <Style x:Key="QuickActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Padding" Value="4,8" />
         <Setter Property="Margin" Value="2,0" />
         <Setter Property="FontSize" Value="11" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}"
+                            BorderBrush="{StaticResource SurfaceBorderBrush}" BorderThickness="1"
+                            CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.82" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.65" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Shelf tab strip. Colour comes from the shelf itself, so it is set per-button in code. -->

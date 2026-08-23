@@ -33,7 +33,15 @@ public sealed class QuickActionsEngine : IQuickActionsEngine
         CancellationToken ct = default)
     {
         var items = await _shelfRepository.GetItemsAsync(shelfId, ct);
+        return await ExecuteOnItemsAsync(items, actionType, targetPath, ct);
+    }
 
+    public async Task<QuickActionResult> ExecuteOnItemsAsync(
+        IReadOnlyList<ShelfItem> items,
+        QuickActionType actionType,
+        string? targetPath = null,
+        CancellationToken ct = default)
+    {
         var itemResults = actionType == QuickActionType.Zip
             ? ExecuteZip(items, targetPath)
             : new List<QuickActionItemResult>();
@@ -105,7 +113,27 @@ public sealed class QuickActionsEngine : IQuickActionsEngine
         var zipPath = Path.Combine(destinationFolder, $"WinClipboard-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
 
         var results = new List<QuickActionItemResult>();
-        using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+
+        ZipArchive archive;
+        try
+        {
+            archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+        }
+        catch (Exception ex)
+        {
+            // The archive itself could not be created (read-only folder, path too long, disk
+            // full, ...). That is not one item's failure, but the engine's contract is that a
+            // caller only ever has to read per-item results — so report it against every item
+            // rather than throwing out of the batch.
+            return [.. items.Select(i => new QuickActionItemResult
+            {
+                ShelfItemId = i.Id,
+                Succeeded = false,
+                ErrorMessage = ex.Message
+            })];
+        }
+
+        using var archiveScope = archive;
         foreach (var item in items)
         {
             try
