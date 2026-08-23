@@ -1,6 +1,7 @@
 <Window x:Class="WinClipboard.App.Views.ShelfPanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:WinClipboard.Core.Models;assembly=WinClipboard.Core"
         Title="WinClipboard - Shelf"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -64,19 +65,40 @@
                            HorizontalAlignment="Center" Margin="0,16" Visibility="Collapsed" />
             </Grid>
 
-            <!-- A separator makes it read as a distinct action bar rather than more list rows. -->
+            <!--
+                Each action is a drop target as well as a button, which is how Dropover works:
+                drag items onto an action to run it on just those, or click it to run it on the
+                whole shelf. Tag carries the action so one pair of handlers serves all four.
+            -->
             <Border Grid.Row="2" BorderBrush="{StaticResource SurfaceBorderBrush}" BorderThickness="0,1,0,0"
                     Margin="0,10,0,0" Padding="0,10,0,0">
-                <UniformGrid Rows="1">
-                    <Button x:Name="MoveButton" Content="Chuyển" ToolTip="Chuyển tất cả vào thư mục"
-                            Style="{StaticResource QuickActionButtonStyle}" Click="OnMoveClicked" />
-                    <Button x:Name="CopyFolderButton" Content="Sao chép" ToolTip="Sao chép tất cả vào thư mục"
-                            Style="{StaticResource QuickActionButtonStyle}" Click="OnCopyToFolderClicked" />
-                    <Button x:Name="ZipButton" Content="Nén ZIP" ToolTip="Nén tất cả thành tệp ZIP"
-                            Style="{StaticResource QuickActionButtonStyle}" Click="OnZipClicked" />
-                    <Button x:Name="ClipboardButton" Content="Copy" ToolTip="Sao chép vào Clipboard"
-                            Style="{StaticResource QuickActionButtonStyle}" Click="OnCopyToClipboardClicked" />
-                </UniformGrid>
+                <StackPanel>
+                    <TextBlock Text="Kéo mục thả vào một hành động, hoặc bấm để áp dụng cho cả shelf"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                               TextWrapping="Wrap" Margin="2,0,2,8" />
+                    <UniformGrid Rows="1">
+                        <Button x:Name="MoveButton" Content="Chuyển" Tag="{x:Static models:QuickActionType.MoveToFolder}"
+                                ToolTip="Thả mục vào đây để chuyển, hoặc bấm để chuyển cả shelf"
+                                Style="{StaticResource QuickActionButtonStyle}"
+                                AllowDrop="True" DragEnter="OnQuickActionDragEnter" DragOver="OnQuickActionDragOver"
+                                DragLeave="OnQuickActionDragLeave" Drop="OnQuickActionDrop" Click="OnMoveClicked" />
+                        <Button x:Name="CopyFolderButton" Content="Sao chép" Tag="{x:Static models:QuickActionType.CopyToFolder}"
+                                ToolTip="Thả mục vào đây để sao chép, hoặc bấm để sao chép cả shelf"
+                                Style="{StaticResource QuickActionButtonStyle}"
+                                AllowDrop="True" DragEnter="OnQuickActionDragEnter" DragOver="OnQuickActionDragOver"
+                                DragLeave="OnQuickActionDragLeave" Drop="OnQuickActionDrop" Click="OnCopyToFolderClicked" />
+                        <Button x:Name="ZipButton" Content="Nén ZIP" Tag="{x:Static models:QuickActionType.Zip}"
+                                ToolTip="Thả mục vào đây để nén, hoặc bấm để nén cả shelf"
+                                Style="{StaticResource QuickActionButtonStyle}"
+                                AllowDrop="True" DragEnter="OnQuickActionDragEnter" DragOver="OnQuickActionDragOver"
+                                DragLeave="OnQuickActionDragLeave" Drop="OnQuickActionDrop" Click="OnZipClicked" />
+                        <Button x:Name="ClipboardButton" Content="Copy" Tag="{x:Static models:QuickActionType.CopyToClipboard}"
+                                ToolTip="Thả mục vào đây để copy, hoặc bấm để copy cả shelf"
+                                Style="{StaticResource QuickActionButtonStyle}"
+                                AllowDrop="True" DragEnter="OnQuickActionDragEnter" DragOver="OnQuickActionDragOver"
+                                DragLeave="OnQuickActionDragLeave" Drop="OnQuickActionDrop" Click="OnCopyToClipboardClicked" />
+                    </UniformGrid>
+                </StackPanel>
             </Border>
 
             <TextBlock x:Name="StatusText" Grid.Row="3" Foreground="{StaticResource TextSecondaryBrush}"

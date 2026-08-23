@@ -11,7 +11,7 @@ hàng trong bảng lộ trình gốc, cùng tiêu chí hoàn thành gốc và tr
       `Data`, `Interop`, `App`).
 - [x] Cấu hình build (`.csproj` cho từng project, `WinClipboard.sln`).
 - [x] **Build được xác nhận** — CI (`windows-latest`) build sạch toàn bộ solution kể cả
-      `WinClipboard.App`, 42/42 test pass.
+      `WinClipboard.App`, 68/68 test pass.
 - [ ] **Chưa xác nhận "cửa sổ overlay hiện/ẩn bằng phím tắt"** — phần này cần chạy app thật,
       CI chỉ build chứ không chạy được UI.
 
@@ -75,8 +75,14 @@ lỗi theo từng item.
       định cho một shelf — tức thao tác một-chạm — chưa được xây**, chỉ có chỗ trong data model
       và trong `QuickActionsEngine` đã sẵn sàng dùng nó).
 - [x] Quick Actions: chuyển vào thư mục, nén ZIP, sao chép, sao chép vào Clipboard
-      (`QuickActionsEngine` — có 6 unit test chạy qua trên Linux, bao gồm test cô lập lỗi
-      từng item: `BatchAction_OneItemFails_OthersStillSucceed`).
+      (`QuickActionsEngine` — có 10 unit test chạy qua trên Linux, bao gồm test cô lập lỗi
+      từng item: `BatchAction_OneItemFails_OthersStillSucceed`, và test khi *bản thân file ZIP*
+      không tạo được thì báo lỗi theo từng item chứ không ném ra ngoài batch).
+- [x] **Chạy Quick Action bằng kéo-thả** (bổ sung theo Dropover) — mỗi ô action trong panel vừa
+      là nút vừa là **drop target**: thả item lên một ô thì chỉ chạy trên đúng những item đó,
+      còn bấm vào ô thì chạy trên cả shelf. Kéo từ ngoài ứng dụng thả thẳng lên một ô thì item
+      được gom vào shelf rồi chạy luôn trong một thao tác. Engine có
+      `ExecuteOnItemsAsync(items, ...)` bên cạnh `ExecuteAsync(shelfId, ...)` cho việc này.
 - [x] **Instant Actions** (bổ sung theo Dropover) — kéo nội dung lên bubble khi shelf đang rỗng
       thì bung ra dải action, thả thẳng vào một action để gom-và-chạy trong một thao tác
       (`BubbleWindow.RunInstantActionAsync`). Dùng `Shelf.DefaultTargetPath` nếu shelf đã đặt sẵn,
@@ -153,7 +159,7 @@ kế hoạch gốc cố tình để ngỏ cho người dùng/chủ dự án quy�
 ## Tổng kết mức độ hoàn thành
 
 Toàn bộ **logic nghiệp vụ** (data model, dedup, Quick Actions, edge/drag detection, settings)
-đã hiện thực đầy đủ và **được unit test xác nhận đúng (42/42 test pass trên Windows CI)**. Toàn
+đã hiện thực đầy đủ và **được unit test xác nhận đúng (68/68 test pass trên Windows CI)**. Toàn
 bộ **giao diện và tích hợp Windows** (WPF windows, hook, hotkey, clipboard, drag-drop, WinRT
 Share) đã viết đầy đủ theo đúng kiến trúc kế hoạch và **compile sạch trên Windows**.
 

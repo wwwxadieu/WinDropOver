@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
+using WinClipboard.App.Services;
 using WinClipboard.App.ViewModels;
 using WinClipboard.Core.Models;
 
@@ -302,16 +303,170 @@ public partial class ShelfPanelWindow : Window
         return null;
     }
 
+    /// <summary>
+    /// Builds the payload for dragging an item out of the shelf. It carries two things: the
+    /// standard shell formats, so the drag works into Explorer and other applications, and the
+    /// item's own id, so dropping it back onto one of this panel's action tiles can act on
+    /// exactly that item instead of re-deriving it from a file path.
+    /// </summary>
     // Single-item drag-out for now — dragging the whole active shelf as one gesture (plan:
     // "kéo cả nhóm... ra nơi cần") is a reasonable follow-up once multi-select lands.
-    private static System.Windows.DataObject? BuildDragData(ShelfItemView view) => view.Model.Type switch
+    private static System.Windows.DataObject? BuildDragData(ShelfItemView view)
     {
-        ShelfItemType.File when view.Model.FilePath is not null =>
-            new System.Windows.DataObject(DataFormats.FileDrop, new[] { view.Model.FilePath }),
-        ShelfItemType.Text or ShelfItemType.Link when view.Model.TextContent is not null =>
-            new System.Windows.DataObject(DataFormats.UnicodeText, view.Model.TextContent),
-        _ => null
-    };
+        System.Windows.DataObject? data = view.Model.Type switch
+        {
+            ShelfItemType.File when view.Model.FilePath is not null =>
+                new System.Windows.DataObject(DataFormats.FileDrop, new[] { view.Model.FilePath }),
+            ShelfItemType.Text or ShelfItemType.Link when view.Model.TextContent is not null =>
+                new System.Windows.DataObject(DataFormats.UnicodeText, view.Model.TextContent),
+            _ => null
+        };
+
+        // Ids travel as text: a drop onto our own window is in-process, but keeping the payload
+        // to a primitive avoids relying on how WPF serialises richer types across formats.
+        data?.SetData(ShelfItemIdsFormat, view.Model.Id.ToString());
+        return data;
+    }
+
+    // ---------------- Quick Actions as drop targets ----------------
+
+    /// <summary>Private clipboard format carrying the dragged shelf item's id back to this window.</summary>
+    private const string ShelfItemIdsFormat = "WinClipboard.ShelfItemIds";
+
+    private void OnQuickActionDragEnter(object sender, DragEventArgs e)
+    {
+        SetQuickActionDropEffect(sender, e);
+        if (e.Effects != DragDropEffects.None && sender is Button button)
+        {
+            button.Background = (Brush)FindResource("AccentBrush");
+        }
+    }
+
+    private void OnQuickActionDragOver(object sender, DragEventArgs e) => SetQuickActionDropEffect(sender, e);
+
+    private void OnQuickActionDragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            // Clearing the local value lets the style's own brush take over again.
+            button.ClearValue(BackgroundProperty);
+        }
+    }
+
+    private static void SetQuickActionDropEffect(object sender, DragEventArgs e)
+    {
+        var accepted = e.Data.GetDataPresent(ShelfItemIdsFormat) || ShelfDropReader.CanRead(e.Data);
+        e.Effects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Runs the dropped-on action against what was dragged. Items dragged from this shelf are
+    /// matched by id; anything dragged in from outside is added to the shelf first, so the
+    /// gesture both collects and acts in one motion.
+    /// </summary>
+    private async void OnQuickActionDrop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button { Tag: QuickActionType action } button)
+        {
+            return;
+        }
+        button.ClearValue(BackgroundProperty);
+
+        // Read the data object before the first await: it belongs to the OLE drag loop, which
+        // ends the moment this handler yields, after which the payload may no longer be readable.
+        var droppedIds = (e.Data.GetData(ShelfItemIdsFormat) as string)?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => long.TryParse(t, out var id) ? id : (long?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet();
+        List<ShelfItem> droppedFromOutside = droppedIds is null
+            ? ShelfDropReader.Read(e.Data, _activeShelfId, firstSortOrder: 0)
+            : [];
+
+        var items = await ResolveDroppedItemsAsync(droppedIds, droppedFromOutside);
+        if (items.Count == 0)
+        {
+            StatusText.Text = "Không có mục nào để xử lý.";
+            return;
+        }
+
+        var targetPath = await ResolveTargetPathAsync(action);
+        if (targetPath is null && NeedsTargetFolder(action))
+        {
+            return;   // Cancelled the folder picker; items stay on the shelf.
+        }
+
+        var result = await _app.QuickActions.ExecuteOnItemsAsync(items, action, targetPath);
+
+        if (action == QuickActionType.MoveToFolder)
+        {
+            foreach (var itemResult in result.ItemResults.Where(r => r.Succeeded))
+            {
+                await _app.ShelfSession.RemoveItemAsync(itemResult.ShelfItemId);
+            }
+        }
+
+        StatusText.Text = result.AllSucceeded
+            ? $"Xong: {result.SuccessCount} mục."
+            : $"{result.SuccessCount} thành công, {result.FailureCount} lỗi.";
+
+        await LoadShelvesAsync();
+    }
+
+    /// <summary>
+    /// Resolves a drop to the items the action should run on. A drag that started in this shelf
+    /// arrives as <paramref name="draggedIds"/> and is matched against what the shelf holds;
+    /// anything else arrives already parsed in <paramref name="fromOutside"/> and is added to the
+    /// shelf first, so one gesture both collects and acts.
+    /// </summary>
+    private async Task<IReadOnlyList<ShelfItem>> ResolveDroppedItemsAsync(
+        HashSet<long>? draggedIds, List<ShelfItem> fromOutside)
+    {
+        if (draggedIds is not null)
+        {
+            return (await _app.ShelfSession.GetItemsAsync(_activeShelfId))
+                .Where(i => draggedIds.Contains(i.Id))
+                .ToList();
+        }
+
+        // Sort order was parsed as 0-based; rebase it so these land after what is already there.
+        var firstSortOrder = (await _app.ShelfSession.GetItemsAsync(_activeShelfId)).Count;
+        foreach (var item in fromOutside)
+        {
+            item.SortOrder += firstSortOrder;
+            item.Id = await _app.ShelfSession.AddItemAsync(item);
+        }
+        return fromOutside;
+    }
+
+    /// <summary>Returns the folder for actions that need one, or null if the user cancelled. Actions that need no folder return null too — check <see cref="NeedsTargetFolder"/>.</summary>
+    private async Task<string?> ResolveTargetPathAsync(QuickActionType action)
+    {
+        if (!NeedsTargetFolder(action))
+        {
+            return null;
+        }
+
+        var shelf = await _app.ShelfSession.GetShelfAsync(_activeShelfId);
+        if (!string.IsNullOrWhiteSpace(shelf?.DefaultTargetPath))
+        {
+            return shelf.DefaultTargetPath;
+        }
+
+        var dialog = new OpenFolderDialog { Title = "Chọn thư mục đích" };
+        _suppressDeactivateHide = true;
+        var picked = dialog.ShowDialog() == true;
+        _suppressDeactivateHide = false;
+        return picked ? dialog.FolderName : null;
+    }
+
+    private static bool NeedsTargetFolder(QuickActionType action) =>
+        action is QuickActionType.MoveToFolder or QuickActionType.CopyToFolder or QuickActionType.Zip;
+
+    // ---------------- Quick Actions as buttons (whole shelf) ----------------
 
     private async void OnMoveClicked(object sender, RoutedEventArgs e) => await RunQuickActionAsync(QuickActionType.MoveToFolder, removeSucceededItems: true);
 
@@ -323,18 +478,10 @@ public partial class ShelfPanelWindow : Window
 
     private async Task RunQuickActionAsync(QuickActionType actionType, bool removeSucceededItems)
     {
-        string? targetPath = null;
-        if (actionType is QuickActionType.MoveToFolder or QuickActionType.CopyToFolder or QuickActionType.Zip)
+        var targetPath = await ResolveTargetPathAsync(actionType);
+        if (targetPath is null && NeedsTargetFolder(actionType))
         {
-            var dialog = new OpenFolderDialog { Title = "Chọn thư mục đích" };
-            _suppressDeactivateHide = true;
-            var picked = dialog.ShowDialog() == true;
-            _suppressDeactivateHide = false;
-            if (!picked)
-            {
-                return;
-            }
-            targetPath = dialog.FolderName;
+            return;   // Cancelled the folder picker.
         }
 
         var result = await _app.QuickActions.ExecuteAsync(_activeShelfId, actionType, targetPath);
