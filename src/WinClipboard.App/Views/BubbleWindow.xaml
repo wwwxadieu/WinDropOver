@@ -9,7 +9,7 @@
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="NoResize"
-        Width="300" Height="248"
+        Width="316" Height="300"
         AllowDrop="True"
         SourceInitialized="OnSourceInitialized"
         DragEnter="OnDragEnter"
@@ -44,7 +44,14 @@
                            FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             </DockPanel>
 
-            <!-- The whole card takes drops; this is just where what landed is shown. -->
+            <!--
+                Two views of the same shelf, one visible at a time — the card picks between them
+                in ReloadAsync. A shelf of photos is unrecognisable as a column of filenames, and
+                a shelf of documents is unrecognisable as a grid of identical page icons, so
+                neither layout can serve both.
+
+                The whole card takes drops; these are only where what landed is shown.
+            -->
             <Grid Grid.Row="1">
                 <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -59,12 +66,49 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
+                                <!-- An image among documents still previews, just at row size. -->
+                                <Border Grid.Column="0" Width="26" Height="26" Margin="0,0,8,0" CornerRadius="4"
+                                        ClipToBounds="True" Visibility="{Binding ThumbnailVisibility}">
+                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                </Border>
                                 <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="15" Margin="0,0,8,0"
-                                           VerticalAlignment="Center" />
+                                           VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
                                 <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                             </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <ListBox x:Name="ThumbnailGrid" Background="Transparent" BorderThickness="0"
+                         Visibility="Collapsed"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
+                         MouseMove="OnItemMouseMove"
+                         MouseLeftButtonUp="OnItemMouseUp">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Width="80" Margin="2,3" ToolTip="{Binding DisplayName}">
+                                <Border Width="72" Height="72" CornerRadius="8" ClipToBounds="True"
+                                        Background="{StaticResource ControlBrush}">
+                                    <Grid>
+                                        <TextBlock Text="{Binding Glyph}" FontSize="26" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
+                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
+                                               Visibility="{Binding ThumbnailVisibility}" />
+                                    </Grid>
+                                </Border>
+                                <TextBlock Text="{Binding DisplayName}" FontSize="10" Margin="0,4,0,0"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextTrimming="CharacterEllipsis" TextAlignment="Center" />
+                            </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

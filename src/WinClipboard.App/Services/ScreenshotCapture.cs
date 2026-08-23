@@ -137,7 +137,7 @@ internal static class ScreenshotCapture
     private static async Task CaptureAllAsync(App app, string outputDirectory)
     {
         Log("Seeding sample data...");
-        await SeedSampleDataAsync(app);
+        await SeedSampleDataAsync(app, outputDirectory);
         Log("Sample data seeded.");
 
         var opened = new List<Window>();
@@ -178,6 +178,15 @@ internal static class ScreenshotCapture
             return window;
         });
 
+        await StepAsync("bubble (thumbnail grid)", "02b-bubble-thumbnails.png", async () =>
+        {
+            var window = new BubbleWindow(app);
+            var shelves = await app.ShelfSession.GetShelvesAsync();
+            var photoShelf = shelves.First(sh => sh.Name == "Ảnh gửi khách");
+            await window.ShowShelfAsync(photoShelf.Id, 600, 400);
+            return window;
+        });
+
         await StepAsync("shelf panel", "03-shelf-panel.png", async () =>
         {
             if (bubble is null)
@@ -211,7 +220,7 @@ internal static class ScreenshotCapture
     /// Populates the shelf and clipboard history so the screenshots show a realistic populated
     /// state rather than four empty panels.
     /// </summary>
-    private static async Task SeedSampleDataAsync(App app)
+    private static async Task SeedSampleDataAsync(App app, string outputDirectory)
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -258,7 +267,11 @@ internal static class ScreenshotCapture
             });
         }
 
-        // A second shelf so the panel's tab strip is visibly doing its job.
+        // A second shelf so the panel's tab strip is visibly doing its job. Its files are written
+        // to disk for real, unlike the ones above: the card switches to its thumbnail grid only
+        // when every item is an image, and decodes each one to draw it. Seeding paths that do not
+        // exist would leave both the grid layout and the decode untested on every CI run — which
+        // is the whole reason this harness exists.
         var photoShelfId = await app.ShelfSession.CreateShelfAsync(new Shelf
         {
             Name = "Ảnh gửi khách",
@@ -266,14 +279,38 @@ internal static class ScreenshotCapture
             SortOrder = 1,
             IsPersisted = false
         });
-        await app.ShelfSession.AddItemAsync(new ShelfItem
+
+        var photoDirectory = Path.Combine(outputDirectory, "screenshot-data", "photos");
+        Directory.CreateDirectory(photoDirectory);
+        var swatches = new[] { Colors.SteelBlue, Colors.IndianRed, Colors.SeaGreen, Colors.Goldenrod };
+        for (var i = 0; i < swatches.Length; i++)
         {
-            ShelfId = photoShelfId,
-            Type = ShelfItemType.File,
-            FilePath = @"C:\Users\me\Pictures\san-pham-01.jpg",
-            AddedAt = now,
-            SortOrder = 0
-        });
+            var path = Path.Combine(photoDirectory, $"san-pham-{i + 1:00}.png");
+            WriteSolidPng(path, swatches[i]);
+            await app.ShelfSession.AddItemAsync(new ShelfItem
+            {
+                ShelfId = photoShelfId,
+                Type = ShelfItemType.File,
+                FilePath = path,
+                AddedAt = now.AddMinutes(-i),
+                SortOrder = i
+            });
+        }
+    }
+
+    /// <summary>A small real PNG, so the thumbnail path has something it can genuinely decode.</summary>
+    private static void WriteSolidPng(string path, Color color)
+    {
+        var bitmap = new WriteableBitmap(64, 64, 96, 96, PixelFormats.Bgra32, null);
+        var pixels = new uint[64 * 64];
+        var packed = (uint)((color.A << 24) | (color.R << 16) | (color.G << 8) | color.B);
+        Array.Fill(pixels, packed);
+        bitmap.WritePixels(new Int32Rect(0, 0, 64, 64), pixels, 64 * 4, 0);
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
     }
 
     private static async Task CaptureAsync(Window window, string outputPath)

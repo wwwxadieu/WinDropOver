@@ -27,6 +27,9 @@ public partial class BubbleWindow : Window
     private readonly App _app;
     private readonly DispatcherTimer _autoHideTimer;
     private long _shelfId;
+
+    /// <summary>When set, the card shows this shelf instead of the default one.</summary>
+    private long? _pinnedShelfId;
     private Point? _dragStartPoint;
     private bool _suppressDeactivateHide;
 
@@ -73,6 +76,13 @@ public partial class BubbleWindow : Window
         RestartAutoHideTimer();
     }
 
+    /// <summary>Shows a particular shelf rather than the default one — what the panel needs when the user switches tabs.</summary>
+    public Task ShowShelfAsync(long shelfId, int screenX, int screenY)
+    {
+        _pinnedShelfId = shelfId;
+        return ShowAtPointAsync(screenX, screenY);
+    }
+
     /// <summary>Shows the shelf wherever the pointer currently is — for the tray entry, which has no drag to take a position from.</summary>
     public Task ShowAtCursorAsync()
     {
@@ -80,18 +90,40 @@ public partial class BubbleWindow : Window
         return ShowAtPointAsync(x, y);
     }
 
+    /// <summary>Wide enough for the grid tiles; the list reuses the same decode at a smaller draw size rather than decoding twice.</summary>
+    private const int ThumbnailPixelWidth = 144;
+
     /// <summary>Reloads the card's contents. Returns the item count for callers that care.</summary>
     public async Task<int> ReloadAsync()
     {
-        _shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
+        _shelfId = _pinnedShelfId ?? await _app.ShelfSession.EnsureDefaultShelfAsync();
         var shelf = await _app.ShelfSession.GetShelfAsync(_shelfId);
         var items = await _app.ShelfSession.GetItemsAsync(_shelfId);
+        var views = await ShelfItemView.BuildAsync(items, ThumbnailPixelWidth);
 
         ShelfNameText.Text = shelf?.Name ?? "Shelf";
         CountText.Text = $"{items.Count} mục";
-        ItemsList.ItemsSource = items.Select(ShelfItemView.From).ToList();
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Grid only when the shelf is nothing but images. Anything else goes to the list: one
+        // document among the photos makes a grid of thumbnails misleading, since that item is the
+        // one the grid cannot show, and a name is what identifies it.
+        var allImages = views.Count > 0 && views.All(v => v.IsImage);
+        ShowItems(allImages ? ThumbnailGrid : ItemsList, views);
         return items.Count;
+    }
+
+    private void ShowItems(ListBox visible, List<ShelfItemView> views)
+    {
+        var hidden = ReferenceEquals(visible, ItemsList) ? ThumbnailGrid : ItemsList;
+
+        visible.ItemsSource = views;
+        visible.Visibility = Visibility.Visible;
+
+        // Release the other view's items rather than only hiding it: leaving both bound would
+        // hold every decoded thumbnail twice for as long as the card lives.
+        hidden.ItemsSource = null;
+        hidden.Visibility = Visibility.Collapsed;
     }
 
     private void RestartAutoHideTimer()
@@ -196,7 +228,9 @@ public partial class BubbleWindow : Window
         var data = BuildDragData(view);
         if (data is not null)
         {
-            DragDrop.DoDragDrop(ItemsList, data, DragDropEffects.Copy | DragDropEffects.Move);
+            // Whichever of the two views the drag started in is the drag source.
+            var source = sender as DependencyObject ?? ItemsList;
+            DragDrop.DoDragDrop(source, data, DragDropEffects.Copy | DragDropEffects.Move);
         }
     }
 
