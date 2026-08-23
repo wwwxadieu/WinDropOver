@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using WinClipboard.App.Services;
 using WinClipboard.Core.Models;
 
 namespace WinClipboard.App.ViewModels;
@@ -26,14 +27,25 @@ public sealed class ShelfItemView
     /// <summary>Null when the item is not an image, or when decoding it failed.</summary>
     public ImageSource? Thumbnail { get; init; }
 
+    /// <summary>
+    /// The icon Explorer shows for this file. Null for text and links, which are not files, and
+    /// for a file the shell had no icon for.
+    /// </summary>
+    public ImageSource? Icon { get; init; }
+
     public bool IsImage =>
         Model.Type == ShelfItemType.File &&
         Model.FilePath is not null &&
         ImageExtensions.Contains(Path.GetExtension(Model.FilePath));
 
-    public Visibility ThumbnailVisibility => Thumbnail is null ? Visibility.Collapsed : Visibility.Visible;
+    // Three ways an item can be shown, in order of how much they say about it: a preview of the
+    // file itself, the icon of the program that owns it, then a shape standing in for its kind.
+    // Each falls through to the next only when the one above is unavailable.
+    public Visibility ThumbnailVisibility => Thumbnail is not null ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility GlyphVisibility => Thumbnail is null ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility IconVisibility => Thumbnail is null && Icon is not null ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility GlyphVisibility => Thumbnail is null && Icon is null ? Visibility.Visible : Visibility.Collapsed;
 
     public string Glyph => Model.Type switch
     {
@@ -65,9 +77,22 @@ public sealed class ShelfItemView
         foreach (var item in items)
         {
             var view = From(item);
-            views.Add(view.IsImage
-                ? new ShelfItemView { Model = item, Thumbnail = await LoadThumbnailAsync(item.FilePath!, thumbnailPixelWidth) }
-                : view);
+            if (view.IsImage)
+            {
+                views.Add(new ShelfItemView
+                {
+                    Model = item,
+                    Thumbnail = await LoadThumbnailAsync(item.FilePath!, thumbnailPixelWidth)
+                });
+            }
+            else if (item.Type == ShelfItemType.File && item.FilePath is not null)
+            {
+                views.Add(new ShelfItemView { Model = item, Icon = await ShellIconCache.GetAsync(item.FilePath) });
+            }
+            else
+            {
+                views.Add(view);
+            }
         }
         return views;
     }

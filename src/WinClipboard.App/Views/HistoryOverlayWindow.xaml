@@ -11,7 +11,8 @@
         SizeToContent="Height"
         Width="380"
         MaxHeight="600"
-        Deactivated="OnDeactivated">
+        Deactivated="OnDeactivated"
+        PreviewKeyDown="OnPreviewKeyDown">
     <Border Style="{StaticResource OverlayChromeStyle}" Padding="12">
         <Grid>
             <Grid.RowDefinitions>

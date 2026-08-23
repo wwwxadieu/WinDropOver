@@ -43,7 +43,15 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <!-- Same three-way fallback as the shelf card: preview, then the file's own icon, then a glyph. -->
+                                <Image Grid.Column="0" Width="24" Height="24" Margin="0,0,8,0" Source="{Binding Thumbnail}"
+                                       Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"
+                                       Visibility="{Binding ThumbnailVisibility}" />
+                                <Image Grid.Column="0" Width="24" Height="24" Margin="0,0,8,0" Source="{Binding Icon}"
+                                       Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
+                                       Visibility="{Binding IconVisibility}" />
+                                <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="16" Margin="0,0,8,0"
+                                           VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
                                 <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="{StaticResource TextPrimaryBrush}"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            ToolTip="Bấm đúp để đổi tên" />
