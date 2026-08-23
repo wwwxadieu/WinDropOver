@@ -22,8 +22,8 @@ hành nào (đây là lý do 20/20 test của nó chạy được trên Linux).
 
 | Mô-đun trong kế hoạch | Code tương ứng | Ghi chú |
 |---|---|---|
-| Edge & Hotkey Drag Trigger | `Interop/EdgeAndHotkeyDragTrigger.cs` + `Core/Services/EdgeDetector.cs` + `Core/Services/DragThresholdDetector.cs` | Toán học thuần (so sánh toạ độ) tách riêng vào `Core` để test được mà không cần hook thật — xem `EdgeDetectorTests.cs`, `DragThresholdDetectorTests.cs`. |
-| Nhận diện đang kéo tệp | `Interop/EdgeAndHotkeyDragTrigger.cs` (left-button-down + ngưỡng di chuyển) | Vẫn là suy đoán như kế hoạch ghi nhận — không có API Windows chính thức để biết chắc "đang kéo file". |
+| Edge & Hotkey Drag Trigger | `Interop/ShelfDragTrigger.cs` + `Core/Services/EdgeDetector.cs` + `Core/Services/DragThresholdDetector.cs` + `Core/Services/ShakeDetector.cs` | Toán học thuần (so sánh toạ độ) tách riêng vào `Core` để test được mà không cần hook thật — xem `EdgeDetectorTests.cs`, `DragThresholdDetectorTests.cs`, `ShakeDetectorTests.cs`. Nay có **3** cách kích hoạt, xem mục đính chính bên dưới. |
+| Nhận diện đang kéo tệp | `Interop/ShelfDragTrigger.cs` (left-button-down + ngưỡng di chuyển) | Vẫn là suy đoán như kế hoạch ghi nhận — không có API Windows chính thức để biết chắc "đang kéo file". |
 | Shelf Manager | `App/Services/ShelfSessionManager.cs` | Implement `IShelfRepository` — vừa là facade vừa quyết định shelf nào ghi DB (`IsPersisted`) và shelf nào chỉ sống trong RAM (id âm). |
 | Quick Actions Engine | `Core/Services/QuickActionsEngine.cs` | Thuần `Core`, test được trên Linux (`QuickActionsEngineTests.cs`) — cô lập lỗi từng item đúng như kế hoạch yêu cầu. |
 | Drag & Drop Bridge | WPF `DragDrop`/`AllowDrop` built-in, dùng trong `BubbleWindow.xaml.cs` (nhận drop) và `ShelfPanelWindow.xaml.cs` (kéo item ra ngoài) | WPF's DragDrop API vốn đã bọc OLE drag-drop (COM `IDropTarget`/`IDropSource`) nên **không cần** tự viết COM interop thủ công như bản kế hoạch ban đầu hình dung. |
@@ -74,6 +74,34 @@ tuỳ chọn lưu SQLite" mà chưa nói *cách* hiện thực). Cách đã ch�
   đã tồn tại từ session-only sang persisted (hay ngược lại) chưa được hỗ trợ — vì kế hoạch mục 7
   còn để ngỏ câu hỏi "có nên persist mặc định hay không", nên chưa có UI/product quyết định đủ rõ
   để build tính năng toggle này.
+
+## Đính chính: kế hoạch gốc mô tả sai cách Dropover kích hoạt shelf
+
+Mục 1.2 kế hoạch v2.0 ("Vì sao đổi sang mô hình Dropover") nêu hai điều, **cả hai đều sai**:
+
+1. Cử chỉ lắc chuột là *"một heuristic tự đặt ra, không có tiền lệ ở ứng dụng nào khác"*.
+2. Dropover kích hoạt shelf bằng *"kéo ra rìa màn hình hoặc giữ phím tắt"*.
+
+Theo [mô tả chính thức trên Mac App Store](https://apps.apple.com/us/app/dropover-easier-drag-drop/id1355679052),
+Dropover kích hoạt shelf bằng: **lắc chuột** (được gọi thẳng là *"the app's signature activation
+method"*), phím tắt tuỳ chỉnh, menu bar, và thả vào notch. **Không có edge-drag.**
+
+Nói cách khác: cử chỉ lắc không phải là phát minh không tiền lệ — nó chính là chữ ký của Dropover;
+còn edge-drag, thứ được xây để thay thế nó, lại là phần Dropover không có. Toàn bộ giai đoạn 3
+của kế hoạch được xây trên tiền đề ngược.
+
+Hệ quả trong code hiện tại: giữ cả ba, mỗi cái bật/tắt độc lập trong Settings.
+
+| Cách | Trạng thái | Ghi chú |
+|---|---|---|
+| Lắc chuột | `ShakeDetector` + `ShakeTriggerEnabled` | Thuật toán O(1) mỗi sample, không cấp phát — chạy trong hook callback nên phải rẻ (rủi ro mục 6: hook chậm bị Windows gỡ). Độ nhạy chỉnh được. |
+| Giữ phím tắt | `HotkeyTriggerEnabled` + `HoldKey` | Đúng như Dropover. |
+| Kéo ra rìa | `EdgeTriggerEnabled` + `EdgeDetector` | Dropover không có, nhưng đã viết xong và chạy được nên giữ lại như lựa chọn thêm. |
+
+`ShakeDetector` cố tình **không** lưu lịch sử điểm: nó gộp chuyển động thành các "đoạn" theo
+hướng và đếm số lần đảo chiều ngay khi xảy ra, nên chi phí mỗi sample là hằng số. Đây chính là
+điều kế hoạch lo ngại khi bác bỏ cử chỉ lắc ("phải tích luỹ chuỗi điểm, phân tích đổi hướng vận
+tốc") — lo ngại đó chỉ đúng với một cách hiện thực cụ thể, không phải với bản thân cử chỉ.
 
 ## Vì sao không cần tự viết COM `IDropTarget`/`IDropSource`
 

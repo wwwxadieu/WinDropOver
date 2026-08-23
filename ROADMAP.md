@@ -38,17 +38,23 @@ không rơi/lỗi dữ liệu.
       `ARCHITECTURE.md` để biết lý do đây là lựa chọn tương đương, ít rủi ro hơn).
 - [x] Bubble (`BubbleWindow`) + panel (`ShelfPanelWindow`) với 1 shelf mặc định
       (`ShelfSessionManager.EnsureDefaultShelfAsync`).
-- [x] Mở bằng giữ phím tắt trong lúc kéo (`EdgeAndHotkeyDragTrigger`, `HotkeyTriggerEnabled`).
+- [x] Mở bằng giữ phím tắt trong lúc kéo (`ShelfDragTrigger`, `HotkeyTriggerEnabled`).
 - [x] Kéo tệp ra khỏi shelf (`ShelfPanelWindow` — `DragDrop.DoDragDrop` khi kéo item, hiện hỗ
       trợ **từng item một**, chưa hỗ trợ kéo cả nhóm cùng lúc).
 - [ ] Chưa chạy thử để xác nhận "không rơi/lỗi dữ liệu" trên Windows thật.
 
-## Giai đoạn 3 — Edge-Drag Trigger
+## Giai đoạn 3 — Edge-Drag Trigger (+ cử chỉ lắc, bổ sung sau)
 
 **Tiêu chí gốc:** Phát hiện rìa đáng tin cậy trên Explorer và ít nhất 2 ứng dụng khác, có thể
 tắt nếu gây phiền.
 
-- [x] Cơ chế kéo tệp ra rìa màn hình (`EdgeAndHotkeyDragTrigger` + `Core/Services/EdgeDetector`).
+> **Đính chính:** kế hoạch v2.0 loại bỏ cử chỉ lắc vì cho rằng nó "không có tiền lệ", trong khi
+> đó chính là cách kích hoạt đặc trưng của Dropover — xem mục đính chính trong `ARCHITECTURE.md`.
+> Cử chỉ lắc đã được bổ sung; cả ba cách kích hoạt cùng tồn tại và bật/tắt độc lập.
+
+- [x] Cơ chế kéo tệp ra rìa màn hình (`ShelfDragTrigger` + `Core/Services/EdgeDetector`).
+- [x] **Cử chỉ lắc chuột** (`Core/Services/ShakeDetector` — 7 unit test, gồm chống nhiễu rung tay,
+      chống tích luỹ đảo chiều rải rác ngoài cửa sổ thời gian, và một lần lắc chỉ kích hoạt một lần).
 - [x] Toán học phát hiện rìa được test đầy đủ trên Linux (`EdgeDetectorTests.cs` — 6 test, bao
       gồm trường hợp góc màn hình, rìa bị tắt, margin = 0).
 - [x] Có thể tắt qua Settings (`EdgeTriggerEnabled` trong `AppSettings` + UI trong
@@ -71,6 +77,16 @@ lỗi theo từng item.
 - [x] Quick Actions: chuyển vào thư mục, nén ZIP, sao chép, sao chép vào Clipboard
       (`QuickActionsEngine` — có 6 unit test chạy qua trên Linux, bao gồm test cô lập lỗi
       từng item: `BatchAction_OneItemFails_OthersStillSucceed`).
+- [x] **Instant Actions** (bổ sung theo Dropover) — kéo nội dung lên bubble khi shelf đang rỗng
+      thì bung ra dải action, thả thẳng vào một action để gom-và-chạy trong một thao tác
+      (`BubbleWindow.RunInstantActionAsync`). Dùng `Shelf.DefaultTargetPath` nếu shelf đã đặt sẵn,
+      chưa đặt thì hỏi thư mục.
+- [x] **Nhận URL và text** (bổ sung theo Dropover) — `ShelfDropReader` đọc cả `FileDrop`,
+      `UniformResourceLocatorW/…` và text; trước đây chỉ đọc `FileDrop` nên link/text bị bỏ im
+      lặng dù model đã có `ShelfItemType.Text`/`.Link`.
+- [x] **Sắp xếp lại và đổi tên item** (bổ sung theo Dropover) — nút lên/xuống và đổi tên trong
+      panel; đổi tên item dạng File thì đổi tên **thật trên đĩa** (`File.Move`), vì đổi mỗi nhãn
+      hiển thị sẽ không sống sót khi kéo tệp ra.
 - [ ] Quick Action "Mở bằng..." và "Chia sẻ" có trong model (`QuickActionType.OpenWith`,
       `.Share`) và có implementation (`ShellLauncherImpl`), nhưng **không xuất hiện trên thanh
       Quick Actions của `ShelfPanelWindow`** — panel hiện chỉ có 4 nút (Chuyển/Sao chép/Zip/
@@ -100,14 +116,22 @@ lỗi theo từng item.
 - [x] Khởi động cùng Windows (`StartupRegistration` — ghi registry Run key).
 - [x] Trang cài đặt đầy đủ (`SettingsWindow` — rìa kích hoạt, phím giữ, tự ẩn bubble, giới hạn
       lịch sử, tự xoá dữ liệu nhạy cảm, khởi động cùng Windows).
-- [x] **Đóng gói .exe tự động** — [`.github/workflows/release-build.yml`](.github/workflows/release-build.yml)
-      publish `WinClipboard.App` dạng self-contained win-x64 single-file và đính kèm vào GitHub
-      Release (tự chạy khi push tag `v*`, hoặc chạy tay qua `workflow_dispatch`).
+- [x] **Đóng gói tự động** — [`.github/workflows/release-build.yml`](.github/workflows/release-build.yml)
+      publish `WinClipboard.App` dạng self-contained win-x64 single-file và đính **2 asset** vào
+      GitHub Release (tự chạy khi push tag `v*`, hoặc chạy tay qua `workflow_dispatch`):
+      bản `.zip` xách tay và bản `.msi` cài đặt.
+- [x] **Installer .msi** ([`installer/WinClipboard.wxs`](installer/WinClipboard.wxs), WiX v5) —
+      cài **theo từng người dùng** (`Scope="perUser"`, vào `%LocalAppData%\Programs`): không cần
+      quyền admin nên không hiện UAC, và khớp với chính cách app lưu dữ liệu (settings + SQLite ở
+      `%LocalAppData%`, "khởi động cùng Windows" ghi HKCU). Có lối tắt Start Menu, có mục gỡ cài
+      đặt trong Apps & features, cài bản mới tự thay bản cũ (`MajorUpgrade`).
+      **Lưu ý:** WiX không chạy được trên Linux nên file này **chỉ được kiểm chứng trên CI** —
+      vì vậy job `installer` trong `ci.yml` build MSI ở mọi push/PR, không đợi tới lúc phát hành.
 - [ ] **Ký số ứng dụng** — chưa có, cần chứng chỉ code-signing thật. Chưa ký thì SmartScreen sẽ
-      cảnh báo khi người dùng chạy lần đầu, và rủi ro "bị AV gắn cờ nhầm" trong bảng mục 6 vẫn
-      còn nguyên (app cài low-level keyboard hook nên càng dễ bị nghi).
-- [ ] **Installer thật** (.msi/winget) — hiện mới chỉ có .exe đóng gói sẵn trong file zip, chưa
-      có luồng cài/gỡ đúng nghĩa; cần quyết định kênh phân phối trước (mục 7 kế hoạch gốc).
+      cảnh báo khi người dùng chạy lần đầu (cả `.exe` lẫn `.msi`), và rủi ro "bị AV gắn cờ nhầm"
+      trong bảng mục 6 vẫn còn nguyên (app cài low-level keyboard hook nên càng dễ bị nghi).
+- [ ] **winget** — chưa nộp manifest; cần quyết định kênh phân phối (mục 7 kế hoạch gốc) và
+      thường yêu cầu installer đã ký số.
 - [ ] Danh sách loại trừ theo ứng dụng nguồn (`AppSettings.ExcludedSourceApps` có trong model
       nhưng **`ClipboardMonitorService` chưa đọc field này để thực sự bỏ qua** — cần nối dây
       thêm một điều kiện kiểm tra `SourceApp` trước khi lưu).

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,7 +29,8 @@ public partial class ShelfPanelWindow : Window
         InitializeComponent();
     }
 
-    public async void ShowNextTo(BubbleWindow bubble, ScreenEdge edge)
+    /// <summary>Task-returning (not async void) so failures surface to the caller instead of crashing the process.</summary>
+    public async Task ShowNextToAsync(BubbleWindow bubble, ScreenEdge edge)
     {
         if (IsVisible)
         {
@@ -92,12 +94,10 @@ public partial class ShelfPanelWindow : Window
         {
             Content = itemCount > 0 ? $"{shelf.Name} ({itemCount})" : shelf.Name,
             Background = brush,
-            Opacity = isActive ? 1.0 : 0.55,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(10, 4, 10, 4),
-            Margin = new Thickness(0, 0, 4, 0),
-            Cursor = System.Windows.Input.Cursors.Hand,
+            // Inactive tabs stay legible rather than fading out: the colour already says which
+            // shelf is which, so the active one is marked by full opacity alone.
+            Opacity = isActive ? 1.0 : 0.5,
+            Style = (Style)FindResource("ShelfTabStyle"),
             Tag = shelf.Id
         };
         button.Click += async (_, _) =>
@@ -140,6 +140,116 @@ public partial class ShelfPanelWindow : Window
         }
         await _app.ShelfSession.RemoveItemAsync(view.Model.Id);
         await LoadShelvesAsync();
+    }
+
+    private async void OnMoveItemUpClicked(object sender, RoutedEventArgs e) => await MoveItemAsync(sender, -1);
+
+    private async void OnMoveItemDownClicked(object sender, RoutedEventArgs e) => await MoveItemAsync(sender, +1);
+
+    /// <summary>
+    /// Swaps an item with its neighbour. SortOrder values in the database are not guaranteed to be
+    /// a clean 0..n-1 run (items are deleted, and older drops all numbered from zero), so the swap
+    /// is done on positions in the loaded list and both items are then renumbered from it.
+    /// </summary>
+    private async Task MoveItemAsync(object sender, int offset)
+    {
+        if (((FrameworkElement)sender).DataContext is not ShelfItemView view)
+        {
+            return;
+        }
+
+        var items = (await _app.ShelfSession.GetItemsAsync(_activeShelfId)).ToList();
+        var index = items.FindIndex(i => i.Id == view.Model.Id);
+        var targetIndex = index + offset;
+        if (index < 0 || targetIndex < 0 || targetIndex >= items.Count)
+        {
+            return;
+        }
+
+        (items[index], items[targetIndex]) = (items[targetIndex], items[index]);
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i].SortOrder != i)
+            {
+                items[i].SortOrder = i;
+                await _app.ShelfSession.UpdateItemAsync(items[i]);
+            }
+        }
+
+        await LoadShelvesAsync();
+    }
+
+    private async void OnRenameItemClicked(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not ShelfItemView view)
+        {
+            return;
+        }
+
+        var item = view.Model;
+        _suppressDeactivateHide = true;
+        try
+        {
+            if (item.Type == ShelfItemType.File)
+            {
+                await RenameFileItemAsync(item);
+            }
+            else
+            {
+                var newText = RenameDialog.Prompt(this, "Nội dung mới:", item.TextContent ?? string.Empty);
+                if (newText is null)
+                {
+                    return;
+                }
+                item.TextContent = newText;
+                await _app.ShelfSession.UpdateItemAsync(item);
+            }
+        }
+        finally
+        {
+            _suppressDeactivateHide = false;
+        }
+
+        await LoadShelvesAsync();
+    }
+
+    /// <summary>Renames the file on disk, matching Dropover — a rename that only changed a label in the shelf would not survive dragging the file out.</summary>
+    private async Task RenameFileItemAsync(ShelfItem item)
+    {
+        var currentPath = item.FilePath;
+        if (string.IsNullOrEmpty(currentPath))
+        {
+            return;
+        }
+
+        var newName = RenameDialog.Prompt(this, "Tên tệp mới:", Path.GetFileName(currentPath));
+        if (newName is null)
+        {
+            return;
+        }
+
+        var directory = Path.GetDirectoryName(currentPath);
+        if (string.IsNullOrEmpty(directory))
+        {
+            StatusText.Text = "Không xác định được thư mục chứa tệp.";
+            return;
+        }
+
+        var newPath = Path.Combine(directory, newName);
+        try
+        {
+            File.Move(currentPath, newPath, overwrite: false);
+        }
+        catch (Exception ex)
+        {
+            // Locked file, missing permission, name already taken, invalid characters...
+            StatusText.Text = $"Không đổi tên được: {ex.Message}";
+            return;
+        }
+
+        item.FilePath = newPath;
+        await _app.ShelfSession.UpdateItemAsync(item);
+        StatusText.Text = $"Đã đổi tên thành {newName}.";
     }
 
     private void OnItemPreviewMouseDown(object sender, MouseButtonEventArgs e) => _dragStartPoint = e.GetPosition(null);

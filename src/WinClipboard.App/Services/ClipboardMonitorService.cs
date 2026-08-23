@@ -123,9 +123,7 @@ public sealed class ClipboardMonitorService
             {
                 return null;
             }
-            var isLink = Uri.TryCreate(text.Trim(), UriKind.Absolute, out var uri)
-                         && (uri.Scheme is "http" or "https" or "ftp" or "mailto");
-            var type = isLink ? ContentType.Link : ContentType.Text;
+            var type = LinkDetector.IsLink(text) ? ContentType.Link : ContentType.Text;
             return new ClipboardItem
             {
                 Type = type,

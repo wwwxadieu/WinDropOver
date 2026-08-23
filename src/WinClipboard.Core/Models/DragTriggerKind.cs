@@ -7,5 +7,8 @@ public enum DragTriggerKind
     Edge,
 
     /// <summary>The configured modifier key was held down while dragging.</summary>
-    Hotkey
+    Hotkey,
+
+    /// <summary>The cursor was shaken back and forth mid-drag — Dropover's signature gesture.</summary>
+    Shake
 }

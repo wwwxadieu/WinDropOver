@@ -54,6 +54,10 @@ public partial class SettingsWindow : Window
             }
         }
 
+        ShakeTriggerCheck.IsChecked = settings.ShakeTriggerEnabled;
+        ShakeDistanceBox.Text = settings.ShakeSegmentDistancePx.ToString();
+        ShakeChangesBox.Text = settings.ShakeDirectionChanges.ToString();
+
         AutoHideCheck.IsChecked = settings.AutoHideBubbleWhenIdle;
         AutoHideSecondsBox.Text = settings.AutoHideIdleSeconds.ToString();
 
@@ -85,6 +89,16 @@ public partial class SettingsWindow : Window
         if (HoldKeyCombo.SelectedItem is System.Windows.Controls.ComboBoxItem selected)
         {
             settings.HoldKey = (ModifierHoldKey)selected.Tag;
+        }
+
+        settings.ShakeTriggerEnabled = ShakeTriggerCheck.IsChecked == true;
+        if (int.TryParse(ShakeDistanceBox.Text, out var shakeDistance) && shakeDistance > 0)
+        {
+            settings.ShakeSegmentDistancePx = shakeDistance;
+        }
+        if (int.TryParse(ShakeChangesBox.Text, out var shakeChanges) && shakeChanges > 0)
+        {
+            settings.ShakeDirectionChanges = shakeChanges;
         }
 
         settings.AutoHideBubbleWhenIdle = AutoHideCheck.IsChecked == true;

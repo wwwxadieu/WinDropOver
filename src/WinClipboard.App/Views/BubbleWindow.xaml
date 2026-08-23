@@ -12,16 +12,36 @@
         AllowDrop="True"
         SourceInitialized="OnSourceInitialized"
         DragEnter="OnDragEnter"
+        DragOver="OnDragOver"
         DragLeave="OnDragLeave"
         Drop="OnDrop"
         MouseLeftButtonUp="OnClicked">
     <Grid>
-        <Border x:Name="BubbleBorder" CornerRadius="36" Background="{StaticResource AccentBrush}" Opacity="0.92">
-            <Border.Effect>
-                <DropShadowEffect Color="Black" Opacity="0.4" BlurRadius="18" ShadowDepth="2" />
-            </Border.Effect>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="72" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Border x:Name="BubbleBorder" Width="72" Height="72" CornerRadius="36"
+                    Background="{StaticResource AccentBrush}" Opacity="0.92">
+                <Border.Effect>
+                    <DropShadowEffect Color="Black" Opacity="0.4" BlurRadius="18" ShadowDepth="2" />
+                </Border.Effect>
+            </Border>
+            <TextBlock x:Name="CountText" Text="0" Foreground="White" FontSize="22" FontWeight="Bold"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+        </Grid>
+
+        <!--
+            Instant Actions: only shown while a drag is hovering an empty shelf. Dropping straight
+            onto one of these collects the items and runs that action in a single gesture, instead
+            of the collect-then-open-panel-then-click route.
+        -->
+        <Border x:Name="InstantActionsPanel" Grid.Row="1" Visibility="Collapsed"
+                Margin="0,6,0,0" Padding="6"
+                Style="{StaticResource OverlayChromeStyle}">
+            <StackPanel x:Name="InstantActionsList" />
         </Border>
-        <TextBlock x:Name="CountText" Text="0" Foreground="White" FontSize="22" FontWeight="Bold"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
     </Grid>
 </Window>

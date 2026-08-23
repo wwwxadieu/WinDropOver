@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WiX v5 authoring for the WinClipboard MSI.
+
+  Deliberately a PER-USER install (Scope="perUser", installed under
+  %LocalAppData%\Programs): it needs no admin rights and so raises no UAC prompt, and it matches
+  what the app itself already does — settings and the SQLite database live in %LocalAppData%,
+  and "start with Windows" writes to HKCU. A per-machine install would demand elevation while
+  still keeping all of its state per-user, which is the worst of both.
+
+  Version and publish directory are passed in by the release workflow:
+    wix build installer\WinClipboard.wxs -d Version=0.1.2.0 -d PublishDir=publish
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package Name="WinClipboard"
+           Manufacturer="WinClipboard"
+           Version="$(var.Version)"
+           UpgradeCode="698A6954-3F9E-4F9F-83CB-CA72E293DA42"
+           Scope="perUser"
+           Compressed="yes">
+
+    <!-- Installing a newer build replaces the old one instead of stacking a second copy. -->
+    <MajorUpgrade DowngradeErrorMessage="Máy đã có bản WinClipboard mới hơn. Hãy gỡ bản đó trước nếu muốn hạ cấp." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!--
+      The app is a self-contained single-file publish, so it carries its own .NET runtime and
+      the MSI has no framework prerequisite to check for.
+    -->
+    <Feature Id="Main" Title="WinClipboard" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <!--
+      No ARPPRODUCTICON: it would need an <Icon> pointing at a file with an icon resource, and
+      the app ships without a real .ico yet (branding is still an open question in the plan's
+      section 7). Add one here once there is one, rather than pointing at the apphost's default.
+    -->
+    <Property Id="ARPNOREPAIR" Value="1" />
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="WinClipboard" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuFolder" Name="WinClipboard" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <!--
+      Harvest whatever `dotnet publish` produced rather than naming files by hand: single-file
+      publish usually yields just WinClipboard.exe, but it can also emit native libraries that
+      could not be embedded, and a hand-written list would silently drop them.
+    -->
+    <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <Component Id="StartMenuShortcut" Directory="AppMenuFolder" Guid="8B207B8A-0EF4-412A-8E0C-2E8639EE0791">
+      <Shortcut Id="AppShortcut"
+                Name="WinClipboard"
+                Description="Quản lý clipboard &amp; shelf kéo-thả"
+                Target="[INSTALLFOLDER]WinClipboard.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveAppMenuFolder" Directory="AppMenuFolder" On="uninstall" />
+      <!-- A per-user component needs an HKCU keypath; the shortcut alone cannot serve as one. -->
+      <RegistryValue Root="HKCU" Key="Software\WinClipboard" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+  </Fragment>
+
+</Wix>

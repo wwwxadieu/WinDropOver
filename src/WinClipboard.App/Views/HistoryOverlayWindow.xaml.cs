@@ -13,13 +13,28 @@ public partial class HistoryOverlayWindow : Window
     private IntPtr _restoreFocusHandle;
     private ContentType? _activeFilter;
 
+    /// <summary>
+    /// False until the constructor finishes. The XAML sets IsChecked="True" on the "Tất cả"
+    /// filter, and WPF raises Checked during InitializeComponent — at that point the controls
+    /// declared further down the XAML (ItemsList, EmptyState) do not exist yet, so a handler
+    /// that reloaded immediately would dereference null and, being async void, take the whole
+    /// process down on the very first Ctrl+Shift+V.
+    /// </summary>
+    private readonly bool _initialized;
+
     public HistoryOverlayWindow(App app)
     {
         _app = app;
         InitializeComponent();
+        _initialized = true;
     }
 
-    public async void ShowOverlay()
+    /// <summary>
+    /// Returns a Task rather than being async void so callers can await it and, more importantly,
+    /// so a failure surfaces as a faulted Task instead of an unhandled exception that kills the
+    /// process (which is exactly what async void does).
+    /// </summary>
+    public async Task ShowOverlayAsync()
     {
         // Must capture the caller's window *before* this window steals focus, so paste can send
         // the keystroke back to wherever the user actually was.
@@ -57,7 +72,14 @@ public partial class HistoryOverlayWindow : Window
         ItemsList.Visibility = views.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private async void OnSearchTextChanged(object sender, TextChangedEventArgs e) => await ReloadAsync();
+    private async void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (!_initialized)
+        {
+            return;
+        }
+        await ReloadAsync();
+    }
 
     private async void OnFilterChanged(object sender, RoutedEventArgs e)
     {
@@ -69,6 +91,14 @@ public partial class HistoryOverlayWindow : Window
             _ when ReferenceEquals(sender, FilterLink) => ContentType.Link,
             _ => null
         };
+
+        // Fires once during InitializeComponent (see _initialized). The filter above is still
+        // worth recording — it is just the default — but the reload has to wait until the
+        // controls it writes to exist. ShowOverlayAsync reloads anyway before showing.
+        if (!_initialized)
+        {
+            return;
+        }
         await ReloadAsync();
     }
 
