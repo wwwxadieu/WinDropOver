@@ -251,8 +251,8 @@ public partial class BubbleWindow : Window
         if (data is not null)
         {
             // Whichever of the two views the drag started in is the drag source.
-            var source = sender as DependencyObject ?? ItemsList;
-            DragDrop.DoDragDrop(source, data, DragDropEffects.Copy | DragDropEffects.Move);
+            var dragSource = sender as DependencyObject ?? ItemsList;
+            DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Copy | DragDropEffects.Move);
         }
     }
 
