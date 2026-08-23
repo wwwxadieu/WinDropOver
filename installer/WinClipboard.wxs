@@ -50,6 +50,27 @@
     <Property Id="ARPNOREPAIR" Value="1" />
 
     <!--
+      No rollback files, which means no Config.Msi folder to secure.
+
+      Windows Installer normally writes .rbf rollback files into Config.Msi at the root of the
+      target drive, then applies a restrictive ACL to them. Applying that ACL needs WRITE_DAC on
+      the file, and this package installs per-user without elevation — so the moment someone
+      browses to a volume they do not own, every one of those files fails with
+
+        Could not set file security for file 'X:\Config.Msi\....rbf'. Error: 5.
+
+      once per file, as a dialog, in the middle of the install. Writing the files works; only
+      securing them is refused, so removing the step removes the failure.
+
+      The trade-off, stated plainly: if an install or upgrade dies partway through, Windows will
+      not undo what it already did. That is a small thing to give up here. Everything this
+      package owns is one folder plus a single HKCU value, nothing shared is replaced, and the
+      recovery for a half-finished install is to run the installer again. Being unable to install
+      onto a drive of your choosing is the larger loss.
+    -->
+    <Property Id="DISABLEROLLBACK" Value="1" />
+
+    <!--
       A wizard rather than the bare progress bar the default UI gives: WixUI_InstallDir adds a
       welcome page, a browsable install location, and a confirmation page.
 
