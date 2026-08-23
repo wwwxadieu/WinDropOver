@@ -55,6 +55,8 @@ internal static class NativeConstants
     public const uint SWP_NOACTIVATE = 0x0010;
     public const uint SWP_SHOWWINDOW = 0x0040;
 
+    public const uint MONITOR_DEFAULTTONEAREST = 0x0002;
+
     // GetSystemMetrics
     public const int SM_CXVIRTUALSCREEN = 78;
     public const int SM_CYVIRTUALSCREEN = 79;

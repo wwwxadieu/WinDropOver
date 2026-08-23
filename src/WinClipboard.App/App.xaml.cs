@@ -101,6 +101,14 @@ public partial class App : System.Windows.Application
         _tray.OpenSettingsRequested += (_, _) => Dispatcher.Invoke(ShowSettingsWindow);
         _tray.ExitRequested += (_, _) => Dispatcher.Invoke(Shutdown);
 
+        // Build the bubble now rather than on the first trigger. Two reasons, both about the
+        // moment it is summoned: a window only becomes an OLE drop target once its handle exists
+        // and it has been registered, and doing that mid-drag leaves the registration racing the
+        // drop; and parsing its XAML for the first time is exactly the kind of delay that used to
+        // happen inside the mouse hook. Neither belongs on the critical path of a gesture.
+        _bubbleWindow = new BubbleWindow(this);
+        new WindowInteropHelper(_bubbleWindow).EnsureHandle();
+
         _ = _shelfSession.EnsureDefaultShelfAsync();
     }
 
@@ -186,7 +194,10 @@ public partial class App : System.Windows.Application
     private void ShowBubble(DragTriggerEventArgs trigger)
     {
         _bubbleWindow ??= new BubbleWindow(this);
-        _ = ReportIfFaultedAsync(_bubbleWindow.ShowAtEdgeAsync(trigger.Edge ?? ScreenEdge.Right));
+        // The trigger knows where the drag was when it fired, and that is where the shelf belongs.
+        // This used to pass only the edge and throw the coordinates away, which parked the shelf
+        // against the side of the screen no matter where the user actually was.
+        _ = ReportIfFaultedAsync(_bubbleWindow.ShowAtPointAsync(trigger.X, trigger.Y));
     }
 
     /// <summary>
@@ -197,14 +208,15 @@ public partial class App : System.Windows.Application
     private void ShowShelfFromTray()
     {
         _bubbleWindow ??= new BubbleWindow(this);
-        var edge = Settings.EnabledEdges.FirstOrDefault(ScreenEdge.Right);
-        _ = ReportIfFaultedAsync(ShowShelfAsync(edge));
+        _ = ReportIfFaultedAsync(ShowShelfAsync());
     }
 
-    private async Task ShowShelfAsync(ScreenEdge edge)
+    private async Task ShowShelfAsync()
     {
-        await _bubbleWindow!.ShowAtEdgeAsync(edge, forceVisible: true);
-        await GetOrCreatePanelWindow().ShowNextToAsync(_bubbleWindow, edge);
+        // No drag to take a position from, so use wherever the pointer is — which, having just
+        // come from the tray menu, is close to where the user is looking.
+        await _bubbleWindow!.ShowAtCursorAsync();
+        await GetOrCreatePanelWindow().ShowNextToAsync(_bubbleWindow, Settings.EnabledEdges.FirstOrDefault(ScreenEdge.Right));
     }
 
     /// <summary>
