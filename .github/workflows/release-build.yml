@@ -102,10 +102,12 @@ jobs:
             throw "MSI is only $($msi.Length) bytes - the publish output was not harvested into it"
           }
 
-      # `gh release upload` fails outright if the release does not exist, so a tag push alone
-      # never actually produced a release. Create it here when missing; this also creates the
-      # tag itself when the run was dispatched with a new one.
-      - name: Create the release if it does not exist
+      # Releases in this repo are immutable: once published, GitHub rejects any new asset with
+      # "Cannot upload assets to an immutable release". So the release has to be created as a
+      # draft, have its assets attached, and only then be published - see the publish step at
+      # the end. Creating it here also creates the tag when the run was dispatched with a new
+      # one, which matters because whoever cuts the release may not be able to push tags.
+      - name: Create the release as a draft
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
@@ -117,15 +119,28 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $false
 
           $t = "${{ steps.tag.outputs.tag }}"
-          gh release view $t 2>&1 | Out-Null
+
+          $existing = gh release view $t --json isDraft,assets 2>&1 | Out-String
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $t already exists - attaching to it."
-            exit 0
+            $info = $existing | ConvertFrom-Json
+            if ($info.isDraft) {
+              Write-Host "Draft release $t already exists - attaching to it."
+              exit 0
+            }
+            if ($info.assets.Count -gt 0) {
+              throw "Release $t is already published with $($info.assets.Count) asset(s). Published releases are immutable here, so its assets cannot be replaced - cut a new tag instead."
+            }
+            # Published with nothing attached is exactly what a run that died between creating
+            # the release and uploading to it leaves behind. It cannot be repaired in place, so
+            # replace it. The tag itself survives: `gh release delete` leaves it unless asked.
+            Write-Host "Release $t is published but has no assets - replacing it."
+            gh release delete $t --yes
+            if ($LASTEXITCODE -ne 0) { throw "Could not delete the empty release $t" }
           }
 
           $title = $t
           $notesFile = "docs/release-notes/$t.md"
-          $arguments = @('release', 'create', $t, '--target', (git rev-parse HEAD))
+          $arguments = @('release', 'create', $t, '--draft', '--target', (git rev-parse HEAD))
 
           if (Test-Path $notesFile) {
             # An "# ..." first line is the release title; the rest is the body. Keeping the
@@ -152,7 +167,7 @@ jobs:
           gh @arguments
           if ($LASTEXITCODE -ne 0) { throw "Could not create release $t" }
 
-      - name: Upload to release
+      - name: Upload assets to the draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
@@ -160,3 +175,27 @@ jobs:
           WinClipboard-win-x64.zip
           WinClipboard-win-x64.msi
           --clobber
+
+      # Publishing is what makes the release immutable, so it has to come after the upload.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+
+          $t = "${{ steps.tag.outputs.tag }}"
+          gh release edit $t --draft=false
+          if ($LASTEXITCODE -ne 0) { throw "Could not publish release $t" }
+
+          # A release that publishes with nothing attached is the failure this whole ordering
+          # exists to prevent, so confirm both assets actually landed before calling it done.
+          $assets = (gh release view $t --json assets | ConvertFrom-Json).assets
+          $names = $assets | ForEach-Object { "$($_.name) ($($_.size) bytes)" }
+          Write-Host "Published $t with: $($names -join ', ')"
+          foreach ($expected in @('WinClipboard-win-x64.zip', 'WinClipboard-win-x64.msi')) {
+            if (-not ($assets | Where-Object { $_.name -eq $expected })) {
+              throw "Release $t published without $expected"
+            }
+          }
