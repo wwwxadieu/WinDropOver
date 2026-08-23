@@ -42,6 +42,7 @@ public sealed class Win32MessageWindow : IDisposable
     public Win32MessageWindow()
     {
         _wndProc = WndProcCallback;
+        MouseHook.CallbackFailed += (_, ex) => CallbackFailed?.Invoke(this, ex);
     }
 
     /// <summary>Queue a hotkey to register once the message loop starts. id must be unique per window.</summary>
@@ -134,7 +135,25 @@ public sealed class Win32MessageWindow : IDisposable
         }
     }
 
+    /// <summary>Raised when handling a window message threw. Reported rather than rethrown, because an exception unwinding out of a WndProc kills the process.</summary>
+    public event EventHandler<Exception>? CallbackFailed;
+
     private IntPtr WndProcCallback(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        try
+        {
+            return DispatchMessage(hWnd, msg, wParam, lParam);
+        }
+        catch (Exception ex)
+        {
+            // Same reasoning as the hook callback: this frame is called from native code, so an
+            // escaping exception is fatal rather than catchable. Report and carry on.
+            CallbackFailed?.Invoke(this, ex);
+            return NativeMethods.DefWindowProc(hWnd, msg, wParam, lParam);
+        }
+    }
+
+    private IntPtr DispatchMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
         switch (msg)
         {

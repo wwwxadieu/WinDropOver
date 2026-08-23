@@ -51,6 +51,16 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        // Record why the app died, wherever it dies. Until now a crash on a user's machine left
+        // nothing behind at all — no console, no log — so diagnosing one meant reading the source
+        // and guessing.
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            CrashLog.Write("AppDomain.UnhandledException", args.ExceptionObject as Exception);
+        DispatcherUnhandledException += (_, args) =>
+            CrashLog.Write("Dispatcher.UnhandledException", args.Exception);
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+            CrashLog.Write("TaskScheduler.UnobservedTaskException", args.Exception);
+
         _singleInstanceMutex = new Mutex(initiallyOwned: true, "WinClipboard.SingleInstance", out var createdNew);
         if (!createdNew)
         {
@@ -70,10 +80,13 @@ public partial class App : System.Windows.Application
         _win32Window.RegisterHotkey(HistoryHotkeyId, Settings.HistoryHotkeyModifiers, Settings.HistoryHotkeyVirtualKey);
         _win32Window.HotkeyPressed += OnHotkeyPressed;
         _win32Window.ClipboardChanged += OnClipboardChangedOnBackgroundThread;
+        // These are failures the interop layer swallowed to keep a native callback from killing
+        // the process. Swallowed is not the same as fine, so they still have to be recorded.
+        _win32Window.CallbackFailed += (_, ex) => CrashLog.Write("Win32 callback", ex);
 
         _dragTrigger = new ShelfDragTrigger(
             BuildDragTriggerOptions(Settings),
-            GetVirtualScreenBounds,
+            VirtualScreen.GetBounds,
             _win32Window.MouseHook,
             _win32Window.KeyboardHook);
         _dragTrigger.Triggered += OnDragTriggered;
@@ -133,45 +146,6 @@ public partial class App : System.Windows.Application
         ShakeSegmentDistancePx = settings.ShakeSegmentDistancePx,
         ShakeDirectionChanges = settings.ShakeDirectionChanges
     };
-
-    private static ScreenRect _cachedScreenBounds;
-    private static long _screenBoundsCachedAtTicks;
-
-    /// <summary>
-    /// Union of every monitor's bounds, so the edge trigger works on whichever screen the drag is
-    /// happening on (plan 6: multi-monitor / mixed-DPI risk).
-    ///
-    /// Cached, because this is asked for on every mouse sample while a drag is in progress - which
-    /// is up to a thousand times a second on a high-polling-rate mouse, on the thread the mouse
-    /// hook runs on. The four SystemParameters reads behind it are not free, and the answer only
-    /// changes when a monitor is added, removed or rearranged. A second of staleness after that is
-    /// not something a drag can notice.
-    /// </summary>
-    private static ScreenRect GetVirtualScreenBounds()
-    {
-        var now = Environment.TickCount64;
-        if (now - _screenBoundsCachedAtTicks < 1000 && _cachedScreenBounds.Right != 0)
-        {
-            return _cachedScreenBounds;
-        }
-
-        var left = (int)SystemParameters.VirtualScreenLeft;
-        var top = (int)SystemParameters.VirtualScreenTop;
-        var width = (int)SystemParameters.VirtualScreenWidth;
-        var height = (int)SystemParameters.VirtualScreenHeight;
-
-        _cachedScreenBounds = new ScreenRect(left, top, left + width, top + height);
-        _screenBoundsCachedAtTicks = now;
-        return _cachedScreenBounds;
-    }
-
-    // Everything below is raised on the Win32 message-loop thread, and that thread must never be
-    // made to wait on the UI thread. It owns the two low-level hooks, and Windows delivers
-    // WH_MOUSE_LL callbacks to it synchronously: if the thread is blocked, every mouse event on
-    // the machine is blocked with it, and once a callback overruns LowLevelHooksTimeout (300ms
-    // by default) Windows silently removes the hook, after which no trigger can ever fire again.
-    // Showing a window comfortably exceeds that on its first call, when the XAML is parsed.
-    // So these hand off with InvokeAsync and return immediately - never Invoke.
 
     private void OnHotkeyPressed(object? sender, int hotkeyId)
     {
@@ -286,10 +260,11 @@ public partial class App : System.Windows.Application
         _win32Window.RegisterHotkey(HistoryHotkeyId, Settings.HistoryHotkeyModifiers, Settings.HistoryHotkeyVirtualKey);
         _win32Window.HotkeyPressed += OnHotkeyPressed;
         _win32Window.ClipboardChanged += OnClipboardChangedOnBackgroundThread;
+        _win32Window.CallbackFailed += (_, ex) => CrashLog.Write("Win32 callback", ex);
 
         _dragTrigger = new ShelfDragTrigger(
             BuildDragTriggerOptions(Settings),
-            GetVirtualScreenBounds,
+            VirtualScreen.GetBounds,
             _win32Window.MouseHook,
             _win32Window.KeyboardHook);
         _dragTrigger.Triggered += OnDragTriggered;

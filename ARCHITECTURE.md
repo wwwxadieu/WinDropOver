@@ -56,6 +56,17 @@ hành nào (đây là lý do 20/20 test của nó chạy được trên Linux).
    Vì cẩn thận vẫn không đủ (một nhịp GC hay máy đang tải nặng cũng đủ vượt 300ms),
    `Win32MessageWindow` chạy thêm một `WM_TIMER` canh chừng: hook im quá 20 giây thì cài lại.
 
+   **Quy tắc thứ hai: không được để exception thoát ra khỏi callback native.** Cả hook proc lẫn
+   `WndProc` đều được Windows gọi qua con trỏ hàm. Exception unwind qua khung native không trở
+   thành unhandled exception thông thường — runtime coi đó là lỗi chí tử và **giết tiến trình
+   ngay**, không handler nào chạy, không log nào được ghi. Vì vậy cả hai chỗ đều bọc `try/catch`
+   và báo lỗi qua sự kiện `CallbackFailed`, `App` ghi vào `crash.log`.
+
+   Hệ quả trực tiếp: **không được đụng `SystemParameters` của WPF từ thread này.** Đó là static
+   gắn với Dispatcher; WPF không cam kết hỗ trợ truy cập ngoài UI thread, và nếu nó ném thì
+   theo đúng quy tắc trên là app chết. Cần biên màn hình thì dùng `VirtualScreen.GetBounds()`
+   (`GetSystemMetrics`, không có thread affinity, trả về đúng cùng con số).
+
    Cùng lý do đó, `MouseHookEventArgs` là **struct**: nó được tạo cho mỗi thông điệp chuột hệ thống
    thấy — kể cả mọi `WM_MOUSEMOVE`, tới cả nghìn lần mỗi giây — nên nếu là class thì đó là một lần
    cấp phát heap cho mỗi lần nhích chuột, suốt thời gian app chạy.
