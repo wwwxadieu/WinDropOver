@@ -21,10 +21,10 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                <Button DockPanel.Dock="Right" Content="&#43;" ToolTip="Thêm shelf mới"
+            <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                <Button DockPanel.Dock="Right" Tag="{StaticResource IconPlus}" ToolTip="Thêm shelf mới"
                         Style="{StaticResource IconButtonStyle}" Click="OnAddShelfClicked" />
-                <StackPanel x:Name="ShelfTabsPanel" Orientation="Horizontal" />
+                <StackPanel x:Name="ShelfTabsPanel" Orientation="Horizontal" VerticalAlignment="Center" />
             </DockPanel>
 
             <Grid Grid.Row="1">
@@ -46,11 +46,15 @@
                                 <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="{StaticResource TextPrimaryBrush}"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                            ToolTip="Bấm đúp để đổi tên" />
-                                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                    <Button Content="&#9650;" ToolTip="Lên" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnMoveItemUpClicked" />
-                                    <Button Content="&#9660;" ToolTip="Xuống" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnMoveItemDownClicked" />
-                                    <Button Content="&#9998;" ToolTip="Đổi tên" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnRenameItemClicked" />
-                                    <Button Content="&#10005;" ToolTip="Xoá khỏi shelf" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnRemoveItemClicked" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Tag="{StaticResource IconChevronUp}" ToolTip="Lên"
+                                            Style="{StaticResource IconButtonStyle}" Width="26" Click="OnMoveItemUpClicked" />
+                                    <Button Tag="{StaticResource IconChevronDown}" ToolTip="Xuống"
+                                            Style="{StaticResource IconButtonStyle}" Width="26" Click="OnMoveItemDownClicked" />
+                                    <Button Tag="{StaticResource IconPencil}" ToolTip="Đổi tên"
+                                            Style="{StaticResource IconButtonStyle}" Width="26" Click="OnRenameItemClicked" />
+                                    <Button Tag="{StaticResource IconClose}" ToolTip="Xoá khỏi shelf"
+                                            Style="{StaticResource DangerIconButtonStyle}" Width="26" Click="OnRemoveItemClicked" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -60,16 +64,20 @@
                            HorizontalAlignment="Center" Margin="0,16" Visibility="Collapsed" />
             </Grid>
 
-            <UniformGrid Grid.Row="2" Rows="1" Margin="0,10,0,0">
-                <Button x:Name="MoveButton" Content="Chuyển" ToolTip="Chuyển tất cả vào thư mục"
-                        Style="{StaticResource IconButtonStyle}" Click="OnMoveClicked" Margin="0,0,2,0" />
-                <Button x:Name="CopyFolderButton" Content="Sao chép" ToolTip="Sao chép tất cả vào thư mục"
-                        Style="{StaticResource IconButtonStyle}" Click="OnCopyToFolderClicked" Margin="2,0" />
-                <Button x:Name="ZipButton" Content="Nén ZIP" ToolTip="Nén tất cả thành tệp ZIP"
-                        Style="{StaticResource IconButtonStyle}" Click="OnZipClicked" Margin="2,0" />
-                <Button x:Name="ClipboardButton" Content="Copy" ToolTip="Sao chép vào Clipboard"
-                        Style="{StaticResource IconButtonStyle}" Click="OnCopyToClipboardClicked" Margin="2,0,0,0" />
-            </UniformGrid>
+            <!-- A separator makes it read as a distinct action bar rather than more list rows. -->
+            <Border Grid.Row="2" BorderBrush="{StaticResource SurfaceBorderBrush}" BorderThickness="0,1,0,0"
+                    Margin="0,10,0,0" Padding="0,10,0,0">
+                <UniformGrid Rows="1">
+                    <Button x:Name="MoveButton" Content="Chuyển" ToolTip="Chuyển tất cả vào thư mục"
+                            Style="{StaticResource QuickActionButtonStyle}" Click="OnMoveClicked" />
+                    <Button x:Name="CopyFolderButton" Content="Sao chép" ToolTip="Sao chép tất cả vào thư mục"
+                            Style="{StaticResource QuickActionButtonStyle}" Click="OnCopyToFolderClicked" />
+                    <Button x:Name="ZipButton" Content="Nén ZIP" ToolTip="Nén tất cả thành tệp ZIP"
+                            Style="{StaticResource QuickActionButtonStyle}" Click="OnZipClicked" />
+                    <Button x:Name="ClipboardButton" Content="Copy" ToolTip="Sao chép vào Clipboard"
+                            Style="{StaticResource QuickActionButtonStyle}" Click="OnCopyToClipboardClicked" />
+                </UniformGrid>
+            </Border>
 
             <TextBlock x:Name="StatusText" Grid.Row="3" Foreground="{StaticResource TextSecondaryBrush}"
                        FontSize="11" Margin="0,8,0,0" TextWrapping="Wrap" />

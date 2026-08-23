@@ -64,10 +64,12 @@
                                                    FontSize="11" Margin="0,2,0,0" />
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                        <ToggleButton IsChecked="{Binding IsPinned, Mode=OneWay}" Content="&#128204;"
-                                                      Style="{StaticResource IconToggleButtonStyle}" Click="OnPinClicked" Margin="0,0,4,0" />
-                                        <Button Content="&#10005;" Style="{StaticResource IconButtonStyle}" Click="OnDeleteClicked" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ToggleButton IsChecked="{Binding IsPinned, Mode=OneWay}"
+                                                      Tag="{StaticResource IconPin}" ToolTip="Ghim"
+                                                      Style="{StaticResource IconToggleButtonStyle}" Click="OnPinClicked" />
+                                        <Button Tag="{StaticResource IconClose}" ToolTip="Xoá khỏi lịch sử"
+                                                Style="{StaticResource DangerIconButtonStyle}" Click="OnDeleteClicked" />
                                     </StackPanel>
                                 </Grid>
                             </Border>

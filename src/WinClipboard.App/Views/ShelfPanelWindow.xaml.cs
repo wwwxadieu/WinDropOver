@@ -94,12 +94,10 @@ public partial class ShelfPanelWindow : Window
         {
             Content = itemCount > 0 ? $"{shelf.Name} ({itemCount})" : shelf.Name,
             Background = brush,
-            Opacity = isActive ? 1.0 : 0.55,
-            Foreground = Brushes.White,
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(10, 4, 10, 4),
-            Margin = new Thickness(0, 0, 4, 0),
-            Cursor = System.Windows.Input.Cursors.Hand,
+            // Inactive tabs stay legible rather than fading out: the colour already says which
+            // shelf is which, so the active one is marked by full opacity alone.
+            Opacity = isActive ? 1.0 : 0.5,
+            Style = (Style)FindResource("ShelfTabStyle"),
             Tag = shelf.Id
         };
         button.Click += async (_, _) =>
