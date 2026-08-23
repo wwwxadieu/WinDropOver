@@ -83,10 +83,13 @@
                             Tag="{StaticResource IconTrash}" ToolTip="Xoá hết nội dung trong shelf"
                             Style="{StaticResource DangerIconButtonStyle}" Visibility="Collapsed"
                             Click="OnClearClicked" />
-                    <TextBlock x:Name="CountText" DockPanel.Dock="Right" Text="0 mục" Margin="0,0,6,0"
-                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center" />
-                    <TextBlock x:Name="ShelfNameText" Text="Shelf" Foreground="{StaticResource TextPrimaryBrush}"
-                               FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <!--
+                        No shelf name. There is only ever one shelf on this card, so naming it said
+                        nothing the user did not already know, and "Shelf 1" was taking the most
+                        prominent line of a 316px-wide window to say it.
+                    -->
+                    <TextBlock x:Name="CountText" Text="0 mục" Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="11" VerticalAlignment="Center" />
                 </DockPanel>
 
                 <!--
@@ -106,13 +109,13 @@
                              MouseLeftButtonUp="OnItemMouseUp">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="2,3">
+                                <Grid Margin="2,3" ToolTip="{Binding ToolTipText}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <!-- An image among documents still previews, just at row size. -->
-                                    <Border Grid.Column="0" Width="26" Height="26" Margin="0,0,8,0" CornerRadius="4"
+                                    <Border Grid.Column="0" Width="30" Height="30" Margin="0,0,8,0" CornerRadius="4"
                                             ClipToBounds="True" Visibility="{Binding ThumbnailVisibility}">
                                         <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                                     </Border>
@@ -121,15 +124,28 @@
                                         the folder it was dragged out of. Square footprint as the thumbnail
                                         above so rows line up whichever of the two a given item gets.
                                     -->
-                                    <Image Grid.Column="0" Width="26" Height="26" Margin="0,0,8,0"
+                                    <Image Grid.Column="0" Width="30" Height="30" Margin="0,0,8,0"
                                            Source="{Binding Icon}" Stretch="Uniform"
                                            RenderOptions.BitmapScalingMode="HighQuality"
                                            Visibility="{Binding IconVisibility}" />
-                                    <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="15" Margin="0,0,8,0"
+                                    <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="17" Width="30"
+                                               Margin="0,0,8,0" TextAlignment="Center"
                                                VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
-                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <!--
+                                        Name over kind-and-size. The name alone leaves the questions a
+                                        collecting shelf actually raises unanswered — which of the two
+                                        exports is this, is that the folder or the zip — and at this width
+                                        it is usually truncated before the extension is even visible.
+                                    -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding DisplayName}" FontSize="12"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Details}" FontSize="10" Margin="0,1,0,0"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Visibility="{Binding DetailsVisibility}" />
+                                    </StackPanel>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -149,7 +165,7 @@
                         </ListBox.ItemsPanel>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Width="80" Margin="2,3" ToolTip="{Binding DisplayName}">
+                                <StackPanel Width="80" Margin="2,3" ToolTip="{Binding ToolTipText}">
                                     <Border Width="72" Height="72" CornerRadius="8" ClipToBounds="True"
                                             Background="{StaticResource ControlBrush}">
                                         <Grid>

@@ -256,11 +256,9 @@ public partial class BubbleWindow : Window
     public async Task<int> ReloadAsync()
     {
         _shelfId = _pinnedShelfId ?? await _app.ShelfSession.EnsureDefaultShelfAsync();
-        var shelf = await _app.ShelfSession.GetShelfAsync(_shelfId);
         var items = await _app.ShelfSession.GetItemsAsync(_shelfId);
         var views = await ShelfItemView.BuildAsync(items, ThumbnailPixelWidth);
 
-        ShelfNameText.Text = shelf?.Name ?? "Shelf";
         CountText.Text = $"{items.Count} mục";
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         RecallHint.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
