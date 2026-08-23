@@ -153,7 +153,12 @@ internal static class ScreenshotCapture
             {
                 Log($"--- {name} ---");
                 var window = await show();
-                opened.Add(window);
+                // A step may hand back a window an earlier step already opened; closing one twice
+                // at the end of the run throws.
+                if (!opened.Contains(window))
+                {
+                    opened.Add(window);
+                }
                 await CaptureAsync(window, Path.Combine(outputDirectory, fileName));
             }
             catch (Exception ex)
@@ -178,13 +183,19 @@ internal static class ScreenshotCapture
             return window;
         });
 
+        // The same card switched to a different shelf, not a second one: the shelf's glass is a
+        // blurred photograph of whatever it is covering, so a second card opened over the first
+        // would come out with the first one frosted into its own background.
         await StepAsync("bubble (thumbnail grid)", "02b-bubble-thumbnails.png", async () =>
         {
-            var window = new BubbleWindow(app);
+            if (bubble is null)
+            {
+                throw new InvalidOperationException("Bubble window failed, so it cannot be switched to the photo shelf.");
+            }
             var shelves = await app.ShelfSession.GetShelvesAsync();
             var photoShelf = shelves.First(sh => sh.Name == "Ảnh gửi khách");
-            await window.ShowShelfAsync(photoShelf.Id, 600, 400);
-            return window;
+            await bubble.ShowShelfAsync(photoShelf.Id, 600, 400);
+            return bubble;
         });
 
         await StepAsync("shelf panel", "03-shelf-panel.png", async () =>

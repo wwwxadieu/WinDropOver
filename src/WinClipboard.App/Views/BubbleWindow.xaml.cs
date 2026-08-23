@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WinClipboard.App.Services;
@@ -63,17 +65,174 @@ public partial class BubbleWindow : Window
     /// </summary>
     public async Task ShowAtPointAsync(int screenX, int screenY)
     {
+        _closing = false;
+
         // Realise the handle without showing, so the card can be positioned before it is painted:
         // showing first and moving after is a visible jump across the screen.
         var hwnd = new WindowInteropHelper(this).EnsureHandle();
+
+        if (IsVisible)
+        {
+            // Already on screen and about to move: it has to come down first, or it photographs
+            // itself for its own backdrop. The gap is one compositor frame — long enough for the
+            // desktop underneath to have repainted, short enough that nobody sees a blink.
+            Hide();
+            await Task.Delay(16);
+        }
+
+        // Hidden until the opening animation runs it up from nothing, so the intermediate
+        // position WPF picks during Show() is never visible. The clock has to be cleared first:
+        // an animation left holding its final value outranks anything assigned to the property.
+        CardRoot.BeginAnimation(OpacityProperty, null);
+        CardRoot.Opacity = 0;
         WindowPlacement.CentreOnScreenPoint(hwnd, screenX, screenY);
 
         await ReloadAsync();
+        CaptureBackdrop(hwnd);
 
         Show();
-        // Again after Show(): WPF applies its own placement as part of showing.
+        // Again after Show(): WPF applies its own placement as part of showing. It lands on the
+        // same rectangle as the first call — same point, same size — so the capture stays aligned.
         WindowPlacement.CentreOnScreenPoint(hwnd, screenX, screenY);
+
+        PlayOpenAnimation();
         RestartAutoHideTimer();
+    }
+
+    // ---------------- Glass ----------------
+
+    /// <summary>Matches the CardRoot margin in XAML: the gap between the window edge and the card.</summary>
+    private const double CardMargin = 12;
+
+    /// <summary>Matches the negative margin on BackdropImage: how far past the card the capture reaches.</summary>
+    private const double BackdropBleed = 40;
+
+    /// <summary>
+    /// Takes the picture the glass is made of. Everything here is best-effort: any failure just
+    /// leaves the card on its opaque fallback fill, which is what it looked like before.
+    /// </summary>
+    private void CaptureBackdrop(IntPtr hwnd)
+    {
+        BackdropImage.Source = null;
+        BackdropImage.Visibility = Visibility.Collapsed;
+        GlassTint.Fill = (Brush)FindResource("GlassBrush");
+
+        try
+        {
+            if (WindowPlacement.GetWindowScreenRect(hwnd) is not { } window)
+            {
+                return;
+            }
+
+            // The card sits inside the window by CardMargin, and the capture reaches BackdropBleed
+            // past the card on every side. Both are WPF units; the screen rectangle is physical
+            // pixels, so each has to be scaled before it can be subtracted from one.
+            var dpi = VisualTreeHelper.GetDpi(this);
+            var insetX = (int)Math.Round((CardMargin - BackdropBleed) * dpi.DpiScaleX);
+            var insetY = (int)Math.Round((CardMargin - BackdropBleed) * dpi.DpiScaleY);
+
+            var region = ScreenCapture.Capture(
+                window.Left + insetX,
+                window.Top + insetY,
+                window.Right - window.Left - insetX * 2,
+                window.Bottom - window.Top - insetY * 2);
+            if (region is null)
+            {
+                return;
+            }
+
+            // Bgr32 rather than Bgra32: BitBlt leaves the fourth byte of each pixel at zero, which
+            // read as alpha would make the whole capture invisible.
+            var image = BitmapSource.Create(
+                region.Width, region.Height, 96, 96, PixelFormats.Bgr32, null,
+                region.Pixels, region.Width * 4);
+            image.Freeze();
+
+            BackdropImage.Source = image;
+            BackdropImage.Visibility = Visibility.Visible;
+            GlassTint.Fill = (Brush)FindResource("GlassTintBrush");
+        }
+        catch
+        {
+            // Fallback fill is already in place from the top of this method.
+        }
+    }
+
+    // ---------------- Opening and closing ----------------
+
+    private bool _closing;
+
+    /// <summary>
+    /// The card grows in from slightly small and slightly low, with a touch of overshoot. This is
+    /// not decoration: the shelf appears unannounced, in the middle of a drag, over whatever the
+    /// user was looking at. A window that simply exists between one frame and the next reads as a
+    /// glitch, where one that arrives reads as a thing that came from somewhere.
+    ///
+    /// Kept under a fifth of a second — long enough to be seen, short enough that a drop landing
+    /// immediately after the trigger never has to wait for it.
+    /// </summary>
+    private void PlayOpenAnimation()
+    {
+        IsHitTestVisible = true;
+
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        var grow = new DoubleAnimation(0.92, 1, TimeSpan.FromMilliseconds(190))
+        {
+            // A small overshoot; the 12px margin around the card is what it grows into.
+            EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.25 }
+        };
+        var rise = new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(190))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+
+        CardRoot.BeginAnimation(OpacityProperty, fade);
+        CardScale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        CardScale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        CardSlide.BeginAnimation(TranslateTransform.YProperty, rise);
+    }
+
+    /// <summary>
+    /// The reverse, faster — going away should not hold anyone up. The window itself stays up
+    /// until the animation finishes, so it stops taking clicks the moment the close begins rather
+    /// than swallowing whatever the user was reaching for behind it.
+    /// </summary>
+    private void HideWithAnimation()
+    {
+        if (_closing || !IsVisible)
+        {
+            return;
+        }
+        _closing = true;
+        // The whole window, not just the card: its background is Transparent, which in WPF is
+        // still a surface that swallows clicks.
+        IsHitTestVisible = false;
+
+        var fade = new DoubleAnimation(0, TimeSpan.FromMilliseconds(110))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+        fade.Completed += (_, _) =>
+        {
+            // A reopen during the close clears the flag, and this then has nothing to do: hiding
+            // here would put away the card that was just asked for.
+            if (_closing)
+            {
+                _closing = false;
+                Hide();
+            }
+        };
+        var shrink = new DoubleAnimation(0.94, TimeSpan.FromMilliseconds(110))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+        };
+
+        CardRoot.BeginAnimation(OpacityProperty, fade);
+        CardScale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        CardScale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
     }
 
     /// <summary>Shows a particular shelf rather than the default one — what the panel needs when the user switches tabs.</summary>
@@ -105,6 +264,9 @@ public partial class BubbleWindow : Window
         CountText.Text = $"{items.Count} mục";
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         RecallHint.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        // Nothing to clear on an empty shelf, and a live-looking button that does nothing is
+        // worse than no button.
+        ClearButton.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         // Grid only when the shelf is nothing but images. Anything else goes to the list: one
         // document among the photos makes a grid of thumbnails misleading, since that item is the
@@ -144,7 +306,7 @@ public partial class BubbleWindow : Window
         // Only an empty shelf goes away on its own; one holding something is still wanted.
         if (await ReloadAsync() == 0 && !_suppressDeactivateHide)
         {
-            Hide();
+            HideWithAnimation();
         }
     }
 
@@ -165,7 +327,7 @@ public partial class BubbleWindow : Window
         // the dialog the user opened from it would be absurd.
         if (!_suppressDeactivateHide)
         {
-            Hide();
+            HideWithAnimation();
         }
     }
 
@@ -408,4 +570,17 @@ public partial class BubbleWindow : Window
         action is QuickActionType.MoveToFolder or QuickActionType.CopyToFolder or QuickActionType.Zip;
 
     private void OnOpenPanelClicked(object sender, RoutedEventArgs e) => _app.OpenShelfPanel(this);
+
+    /// <summary>
+    /// Empties the shelf. No confirmation: this removes items from a shelf, it does not touch a
+    /// single file on disk, and the shelf is a scratch surface — asking "are you sure" every time
+    /// someone clears their scratch surface is how a confirmation dialog becomes something people
+    /// dismiss without reading.
+    /// </summary>
+    private async void OnClearClicked(object sender, RoutedEventArgs e)
+    {
+        await _app.ShelfSession.ClearItemsAsync(_shelfId);
+        await ReloadAsync();
+        RestartAutoHideTimer();
+    }
 }

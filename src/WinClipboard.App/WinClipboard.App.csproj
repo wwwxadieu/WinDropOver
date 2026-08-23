@@ -10,6 +10,8 @@
          hosts (this repo was assembled in a Linux sandbox); irrelevant on a real Windows build. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Gives the .exe its icon in Explorer, the taskbar and Alt+Tab. -->
+    <ApplicationIcon>..\..\assets\WinClipboard.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
@@ -33,6 +35,12 @@
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embedded as well as compiled into the exe header: the tray needs an Icon object at
+         runtime, and extracting it from the executable is more fragile than just carrying it. -->
+    <Resource Include="..\..\assets\WinClipboard.ico" Link="Assets\WinClipboard.ico" />
   </ItemGroup>
 
 </Project>

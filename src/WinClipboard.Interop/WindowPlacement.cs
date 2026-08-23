@@ -49,6 +49,12 @@ public static class WindowPlacement
             NativeConstants.SWP_NOSIZE | NativeConstants.SWP_NOACTIVATE);
     }
 
+    /// <summary>The window's bounds in physical screen pixels, or null if it has no handle yet.</summary>
+    public static Core.Models.ScreenRect? GetWindowScreenRect(IntPtr hwnd) =>
+        hwnd != IntPtr.Zero && NativeMethods.GetWindowRect(hwnd, out var rect)
+            ? new Core.Models.ScreenRect(rect.Left, rect.Top, rect.Right, rect.Bottom)
+            : null;
+
     /// <summary>Where the pointer is now, in the same physical pixels the hooks report. Falls back to (0,0), which the caller's clamp then pulls onto the nearest monitor.</summary>
     public static (int X, int Y) GetCursorPosition() =>
         NativeMethods.GetCursorPos(out var point) ? (point.X, point.Y) : (0, 0);

@@ -42,11 +42,9 @@
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
 
-    <!--
-      No ARPPRODUCTICON: it would need an <Icon> pointing at a file with an icon resource, and
-      the app ships without a real .ico yet (branding is still an open question in the plan's
-      section 7). Add one here once there is one, rather than pointing at the apphost's default.
-    -->
+    <!-- The icon Apps & features shows next to the entry, and the Start Menu shortcut uses. -->
+    <Icon Id="AppIcon.ico" SourceFile="..\assets\WinClipboard.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPNOREPAIR" Value="1" />
 
     <!--
@@ -139,7 +137,8 @@
                 Name="WinClipboard"
                 Description="Quản lý clipboard &amp; shelf kéo-thả"
                 Target="[INSTALLFOLDER]WinClipboard.exe"
-                WorkingDirectory="INSTALLFOLDER" />
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="AppIcon.ico" />
       <RemoveFolder Id="RemoveAppMenuFolder" Directory="AppMenuFolder" On="uninstall" />
       <!-- A per-user component needs an HKCU keypath; the shortcut alone cannot serve as one. -->
       <RegistryValue Root="HKCU" Key="Software\WinClipboard" Name="Installed" Type="integer" Value="1" KeyPath="yes" />

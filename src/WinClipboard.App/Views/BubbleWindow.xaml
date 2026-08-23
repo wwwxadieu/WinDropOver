@@ -9,7 +9,7 @@
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="NoResize"
-        Width="316" Height="320"
+        Width="340" Height="356"
         AllowDrop="True"
         SourceInitialized="OnSourceInitialized"
         DragEnter="OnDragEnter"
@@ -17,96 +17,139 @@
         DragLeave="OnDragLeave"
         Drop="OnDrop"
         Deactivated="OnDeactivated">
+    <Window.Resources>
+        <!--
+            The card's rounded outline, used to clip the glass layers. A Border's CornerRadius
+            rounds what it paints but not what it contains, and ClipToBounds squares the corners
+            off again, so the blur needs a geometry of its own. Literal because the window is a
+            fixed size: 340x356 less the 12px margin the shadow needs to spill into.
+        -->
+        <RectangleGeometry x:Key="CardClip" Rect="0,0,316,332" RadiusX="14" RadiusY="14" />
+    </Window.Resources>
+
     <!--
-        Glass by translucency rather than by DWM's acrylic backdrop. The real thing would blur
-        what is behind the window instead of merely tinting it, but it requires turning
-        AllowsTransparency off — and without that WPF cannot render a transparent pixel, so the
-        card would need an opaque background, which is precisely what the backdrop needs to show
-        through. The two rule each other out. Given the appearance of the whole window rides on
-        it and none of it can be tried outside Windows, this takes the version that behaves the
-        same on Windows 10 and 11 over the one that looks better when it works.
+        Everything scales and fades together on open and close, so the margin here is doing two
+        jobs: room for the drop shadow to fall into, and room for the opening overshoot to grow
+        into without being cut off by the window edge.
     -->
-    <Border x:Name="RootBackground" Background="{StaticResource GlassBrush}" CornerRadius="14"
-            BorderBrush="{StaticResource GlassBorderBrush}" BorderThickness="1" Padding="14,12">
-        <Border.Effect>
-            <DropShadowEffect Color="Black" Opacity="0.45" BlurRadius="24" ShadowDepth="3" />
-        </Border.Effect>
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+    <Grid x:Name="CardRoot" Margin="12" Opacity="0" RenderTransformOrigin="0.5,0.5">
+        <Grid.RenderTransform>
+            <TransformGroup>
+                <ScaleTransform x:Name="CardScale" ScaleX="1" ScaleY="1" />
+                <TranslateTransform x:Name="CardSlide" Y="0" />
+            </TransformGroup>
+        </Grid.RenderTransform>
 
-            <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                <TextBlock x:Name="CountText" DockPanel.Dock="Right" Text="0 mục"
-                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center" />
-                <TextBlock x:Name="ShelfNameText" Text="Shelf" Foreground="{StaticResource TextPrimaryBrush}"
-                           FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-            </DockPanel>
+        <!--
+            Bottom to top: the shadow caster, the glass, then the content. The caster is a plain
+            filled rectangle whose own paint never shows — the glass covers it exactly — except
+            when the backdrop capture fails, which is why its fill is the opaque fallback.
+        -->
+        <Border CornerRadius="14" Background="{StaticResource GlassBrush}">
+            <Border.Effect>
+                <!-- Sized to land inside the 12px margin: half the blur plus the depth. -->
+                <DropShadowEffect Color="Black" Opacity="0.5" BlurRadius="16" ShadowDepth="3" />
+            </Border.Effect>
+        </Border>
 
+        <Grid Clip="{StaticResource CardClip}">
             <!--
-                Two views of the same shelf, one visible at a time — the card picks between them
-                in ReloadAsync. A shelf of photos is unrecognisable as a column of filenames, and
-                a shelf of documents is unrecognisable as a grid of identical page icons, so
-                neither layout can serve both.
-
-                The whole card takes drops; these are only where what landed is shown.
+                A photograph of the desktop this card is about to cover, blurred. Drawn 40px
+                oversized on every side (the capture is taken oversized to match) because a blur
+                samples past its own edges: sized exactly, the four sides would fade out into
+                nothing and the glass would look vignetted.
             -->
-            <Grid Grid.Row="1">
-                <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
-                         MouseMove="OnItemMouseMove"
-                         MouseLeftButtonUp="OnItemMouseUp">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="2,3">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <!-- An image among documents still previews, just at row size. -->
-                                <Border Grid.Column="0" Width="26" Height="26" Margin="0,0,8,0" CornerRadius="4"
-                                        ClipToBounds="True" Visibility="{Binding ThumbnailVisibility}">
-                                    <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
-                                </Border>
-                                <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="15" Margin="0,0,8,0"
-                                           VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
-                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+            <Image x:Name="BackdropImage" Stretch="Fill" Margin="-40" Visibility="Collapsed">
+                <Image.Effect>
+                    <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance" />
+                </Image.Effect>
+            </Image>
+            <Rectangle x:Name="GlassTint" Fill="{StaticResource GlassBrush}" />
+            <Rectangle Fill="{StaticResource GlassSheenBrush}" IsHitTestVisible="False" />
+        </Grid>
 
-                <ListBox x:Name="ThumbnailGrid" Background="Transparent" BorderThickness="0"
-                         Visibility="Collapsed"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
-                         MouseMove="OnItemMouseMove"
-                         MouseLeftButtonUp="OnItemMouseUp">
-                    <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Width="80" Margin="2,3" ToolTip="{Binding DisplayName}">
-                                <Border Width="72" Height="72" CornerRadius="8" ClipToBounds="True"
-                                        Background="{StaticResource ControlBrush}">
-                                    <Grid>
-                                        <TextBlock Text="{Binding Glyph}" FontSize="26" HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
-                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
-                                               Visibility="{Binding ThumbnailVisibility}" />
-                                    </Grid>
-                                </Border>
+        <Border x:Name="RootBackground" Background="Transparent" CornerRadius="14"
+                BorderBrush="{StaticResource GlassBorderBrush}" BorderThickness="1" Padding="14,12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                    <Button x:Name="ClearButton" DockPanel.Dock="Right" Width="26" Height="26"
+                            Tag="{StaticResource IconTrash}" ToolTip="Xoá hết nội dung trong shelf"
+                            Style="{StaticResource DangerIconButtonStyle}" Visibility="Collapsed"
+                            Click="OnClearClicked" />
+                    <TextBlock x:Name="CountText" DockPanel.Dock="Right" Text="0 mục" Margin="0,0,6,0"
+                               Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center" />
+                    <TextBlock x:Name="ShelfNameText" Text="Shelf" Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+
+                <!--
+                    Two views of the same shelf, one visible at a time — the card picks between them
+                    in ReloadAsync. A shelf of photos is unrecognisable as a column of filenames, and
+                    a shelf of documents is unrecognisable as a grid of identical page icons, so
+                    neither layout can serve both.
+
+                    The whole card takes drops; these are only where what landed is shown.
+                -->
+                <Grid Grid.Row="1">
+                    <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
+                             MouseMove="OnItemMouseMove"
+                             MouseLeftButtonUp="OnItemMouseUp">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="2,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <!-- An image among documents still previews, just at row size. -->
+                                    <Border Grid.Column="0" Width="26" Height="26" Margin="0,0,8,0" CornerRadius="4"
+                                            ClipToBounds="True" Visibility="{Binding ThumbnailVisibility}">
+                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="15" Margin="0,0,8,0"
+                                               VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <ListBox x:Name="ThumbnailGrid" Background="Transparent" BorderThickness="0"
+                             Visibility="Collapsed"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
+                             MouseMove="OnItemMouseMove"
+                             MouseLeftButtonUp="OnItemMouseUp">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Width="80" Margin="2,3" ToolTip="{Binding DisplayName}">
+                                    <Border Width="72" Height="72" CornerRadius="8" ClipToBounds="True"
+                                            Background="{StaticResource ControlBrush}">
+                                        <Grid>
+                                            <TextBlock Text="{Binding Glyph}" FontSize="26" HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
+                                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
+                                                   Visibility="{Binding ThumbnailVisibility}" />
+                                        </Grid>
+        </Border>
                                 <TextBlock Text="{Binding DisplayName}" FontSize="10" Margin="0,4,0,0"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            TextTrimming="CharacterEllipsis" TextAlignment="Center" />
@@ -160,5 +203,6 @@
                        Foreground="{StaticResource TextMutedBrush}" FontSize="10"
                        TextAlignment="Center" Margin="0,8,0,0" />
         </Grid>
-    </Border>
+        </Border>
+    </Grid>
 </Window>
