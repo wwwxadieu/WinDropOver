@@ -920,7 +920,25 @@ public partial class BubbleWindow : Window
     private static bool NeedsTargetFolder(QuickActionType action) =>
         action is QuickActionType.MoveToFolder or QuickActionType.CopyToFolder or QuickActionType.Zip;
 
-    private void OnOpenPanelClicked(object sender, RoutedEventArgs e) => _app.OpenShelfPanel(this);
+    private async void OnRemoveItemClicked(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not FrameworkElement { DataContext: ShelfItemView view })
+        {
+            return;
+        }
+
+        try
+        {
+            await _app.ShelfSession.RemoveItemAsync(view.Model.Id);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble remove item", ex);
+        }
+        RestartAutoHideTimer();
+    }
 
     /// <summary>
     /// Empties the shelf. No confirmation: this removes items from a shelf, it does not touch a
