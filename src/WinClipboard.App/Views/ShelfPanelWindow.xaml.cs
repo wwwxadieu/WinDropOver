@@ -28,7 +28,8 @@ public partial class ShelfPanelWindow : Window
         InitializeComponent();
     }
 
-    public async void ShowNextTo(BubbleWindow bubble, ScreenEdge edge)
+    /// <summary>Task-returning (not async void) so failures surface to the caller instead of crashing the process.</summary>
+    public async Task ShowNextToAsync(BubbleWindow bubble, ScreenEdge edge)
     {
         if (IsVisible)
         {

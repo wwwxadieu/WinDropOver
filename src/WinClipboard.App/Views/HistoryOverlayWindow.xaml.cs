@@ -19,7 +19,12 @@ public partial class HistoryOverlayWindow : Window
         InitializeComponent();
     }
 
-    public async void ShowOverlay()
+    /// <summary>
+    /// Returns a Task rather than being async void so callers can await it and, more importantly,
+    /// so a failure surfaces as a faulted Task instead of an unhandled exception that kills the
+    /// process (which is exactly what async void does).
+    /// </summary>
+    public async Task ShowOverlayAsync()
     {
         // Must capture the caller's window *before* this window steals focus, so paste can send
         // the keystroke back to wherever the user actually was.

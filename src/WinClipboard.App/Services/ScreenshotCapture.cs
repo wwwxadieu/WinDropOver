@@ -62,11 +62,43 @@ internal static class ScreenshotCapture
     /// screenshot-log.txt in the output directory: this is a WinExe, so console output is not
     /// reliably visible to whatever launched it, and the log file is what CI actually reads.
     /// </summary>
+    private static string? _logPath;
+
+    /// <summary>
+    /// Called when a fire-and-forget task faults. In screenshot mode this must reach the log —
+    /// the previous CI run died with a bare 0xE0434352 and no log at all, because an async void
+    /// method threw where nothing could catch it.
+    /// </summary>
+    public static void ReportBackgroundFailure(Exception ex)
+    {
+        if (_logPath is null)
+        {
+            return; // Not in screenshot mode; a normal run just carries on.
+        }
+        Log($"BACKGROUND FAILURE: {ex}");
+        FlushLog();
+    }
+
     public static async Task<int> RunAsync(App app, string outputDirectory)
     {
-        Directory.CreateDirectory(outputDirectory);
         try
         {
+            Directory.CreateDirectory(outputDirectory);
+            _logPath = Path.Combine(outputDirectory, "screenshot-log.txt");
+
+            // Catch anything that escapes the await chain (a throwing event handler, a faulted
+            // async void) so the log always explains a failure instead of the process just dying.
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            {
+                Log($"UNHANDLED: {e.ExceptionObject}");
+                FlushLog();
+            };
+            app.DispatcherUnhandledException += (_, e) =>
+            {
+                Log($"DISPATCHER UNHANDLED: {e.Exception}");
+                FlushLog();
+            };
+
             await CaptureAllAsync(app, outputDirectory);
             Log("All screenshots captured successfully.");
             return 0;
@@ -78,42 +110,96 @@ internal static class ScreenshotCapture
         }
         finally
         {
-            try
-            {
-                File.WriteAllLines(Path.Combine(outputDirectory, "screenshot-log.txt"), LogLines);
-            }
-            catch (IOException)
-            {
-                // Losing the log must not mask the real exit code.
-            }
+            FlushLog();
+        }
+    }
+
+    private static void FlushLog()
+    {
+        if (_logPath is null)
+        {
+            return;
+        }
+        try
+        {
+            File.WriteAllLines(_logPath, LogLines);
+        }
+        catch (IOException)
+        {
+            // Losing the log must not mask the real exit code.
         }
     }
 
     private static async Task CaptureAllAsync(App app, string outputDirectory)
     {
+        Log("Seeding sample data...");
         await SeedSampleDataAsync(app);
+        Log("Sample data seeded.");
 
-        // The history overlay and shelf panel load their contents asynchronously, so each
-        // capture shows the window only after its own load has settled (see CaptureAsync).
-        var history = new HistoryOverlayWindow(app);
-        history.ShowOverlay();
-        await CaptureAsync(history, Path.Combine(outputDirectory, "01-history-overlay.png"));
+        var opened = new List<Window>();
+        var failures = new List<string>();
 
-        var bubble = new BubbleWindow(app);
-        bubble.ShowAtEdge(ScreenEdge.Right);
-        await CaptureAsync(bubble, Path.Combine(outputDirectory, "02-bubble.png"));
+        // Each window is captured independently: one failing window should still leave the other
+        // three usable, and the log then names exactly which one broke.
+        BubbleWindow? bubble = null;
 
-        var panel = app.GetOrCreatePanelWindow();
-        panel.ShowNextTo(bubble, ScreenEdge.Right);
-        await CaptureAsync(panel, Path.Combine(outputDirectory, "03-shelf-panel.png"));
+        async Task StepAsync(string name, string fileName, Func<Task<Window>> show)
+        {
+            try
+            {
+                Log($"--- {name} ---");
+                var window = await show();
+                opened.Add(window);
+                await CaptureAsync(window, Path.Combine(outputDirectory, fileName));
+            }
+            catch (Exception ex)
+            {
+                failures.Add(name);
+                Log($"{name} FAILED: {ex}");
+            }
+        }
 
-        var settings = new SettingsWindow(app);
-        settings.Show();
-        await CaptureAsync(settings, Path.Combine(outputDirectory, "04-settings.png"));
+        await StepAsync("history overlay", "01-history-overlay.png", async () =>
+        {
+            var window = new HistoryOverlayWindow(app);
+            await window.ShowOverlayAsync();
+            return window;
+        });
 
-        foreach (var window in new Window[] { history, bubble, panel, settings })
+        await StepAsync("bubble", "02-bubble.png", async () =>
+        {
+            var window = new BubbleWindow(app);
+            await window.ShowAtEdgeAsync(ScreenEdge.Right);
+            bubble = window;
+            return window;
+        });
+
+        await StepAsync("shelf panel", "03-shelf-panel.png", async () =>
+        {
+            if (bubble is null)
+            {
+                throw new InvalidOperationException("Bubble window failed, so the panel cannot be positioned next to it.");
+            }
+            var window = app.GetOrCreatePanelWindow();
+            await window.ShowNextToAsync(bubble, ScreenEdge.Right);
+            return window;
+        });
+
+        await StepAsync("settings", "04-settings.png", () =>
+        {
+            var window = new SettingsWindow(app);
+            window.Show();
+            return Task.FromResult<Window>(window);
+        });
+
+        foreach (var window in opened)
         {
             window.Close();
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException($"Failed to capture: {string.Join(", ", failures)}");
         }
     }
 

@@ -169,14 +169,31 @@ public partial class App : System.Windows.Application
         }
         else
         {
-            _historyWindow.ShowOverlay();
+            // Fire-and-forget from a UI event: a failure here should log, not take the app down.
+            _ = ReportIfFaultedAsync(_historyWindow.ShowOverlayAsync());
         }
     }
 
     private void ShowBubble(DragTriggerEventArgs trigger)
     {
         _bubbleWindow ??= new BubbleWindow(this);
-        _bubbleWindow.ShowAtEdge(trigger.Edge ?? ScreenEdge.Right);
+        _ = ReportIfFaultedAsync(_bubbleWindow.ShowAtEdgeAsync(trigger.Edge ?? ScreenEdge.Right));
+    }
+
+    /// <summary>
+    /// Awaits a fire-and-forget task and surfaces a failure instead of letting it vanish into an
+    /// unobserved Task. Screenshot mode routes this to its log; a normal run shows a message box.
+    /// </summary>
+    internal static async Task ReportIfFaultedAsync(Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception ex)
+        {
+            ScreenshotCapture.ReportBackgroundFailure(ex);
+        }
     }
 
     internal ShelfPanelWindow GetOrCreatePanelWindow()

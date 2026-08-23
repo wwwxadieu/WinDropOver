@@ -46,9 +46,14 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "Screenshot capture exited with $($p.ExitCode)" }
           Get-ChildItem screenshots -Filter *.png | ForEach-Object { Write-Host "$($_.Name) $($_.Length) bytes" }
 
+      # always(): on a partial failure the PNGs that did render, plus the log naming the window
+      # that broke, are exactly what is needed to diagnose it.
       - name: Upload screenshots
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-screenshots
-          path: screenshots/*.png
-          if-no-files-found: error
+          path: |
+            screenshots/*.png
+            screenshots/screenshot-log.txt
+          if-no-files-found: warn

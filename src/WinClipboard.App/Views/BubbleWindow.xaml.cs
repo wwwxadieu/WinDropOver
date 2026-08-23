@@ -42,7 +42,8 @@ public partial class BubbleWindow : Window
         }
     }
 
-    public async void ShowAtEdge(ScreenEdge edge)
+    /// <summary>Task-returning (not async void) so failures surface to the caller instead of crashing the process.</summary>
+    public async Task ShowAtEdgeAsync(ScreenEdge edge)
     {
         _currentEdge = edge;
         PositionAtEdge(edge);
@@ -144,7 +145,7 @@ public partial class BubbleWindow : Window
     private void OnClicked(object sender, MouseButtonEventArgs e)
     {
         var panel = _app.GetOrCreatePanelWindow();
-        panel.ShowNextTo(this, _currentEdge);
+        _ = App.ReportIfFaultedAsync(panel.ShowNextToAsync(this, _currentEdge));
         RestartAutoHideTimer();
     }
 }
