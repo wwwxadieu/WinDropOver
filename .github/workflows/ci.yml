@@ -81,6 +81,7 @@ jobs:
 
       - name: Install WiX
         run: dotnet tool install --global wix --version 5.*
+          wix extension add --global WixToolset.UI.wixext/5.*
 
       - name: Build MSI installer
         shell: pwsh
@@ -91,7 +92,12 @@ jobs:
           $publishDir = (Resolve-Path publish).Path
           # A placeholder version is fine here: this job only proves the authoring builds.
           # release-build.yml derives the real version from the tag.
-          wix build installer\WinClipboard.wxs -d Version=0.0.0.0 -d PublishDir="$publishDir" -arch x64 -o WinClipboard-win-x64.msi
+          wix build installer\WinClipboard.wxs `
+            -d Version=0.0.0.0 `
+            -d PublishDir="$publishDir" `
+            -ext WixToolset.UI.wixext `
+            -arch x64 `
+            -o WinClipboard-win-x64.msi
           if (-not (Test-Path WinClipboard-win-x64.msi)) { throw "MSI was not produced" }
           $msi = Get-Item WinClipboard-win-x64.msi
           Write-Host "$($msi.Name) $($msi.Length) bytes"
