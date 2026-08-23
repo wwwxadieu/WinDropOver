@@ -25,6 +25,7 @@ internal static class NativeConstants
     public const int WM_CLIPBOARDUPDATE = 0x031D;
     public const int WM_DESTROY = 0x0002;
     public const int WM_CLOSE = 0x0010;
+    public const int WM_TIMER = 0x0113;
     public const int WM_NCDESTROY = 0x0082;
 
     // RegisterHotKey modifier flags

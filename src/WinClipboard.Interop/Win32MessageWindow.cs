@@ -14,6 +14,14 @@ public sealed class Win32MessageWindow : IDisposable
 {
     private const string ClassName = "WinClipboard.MessageWindow";
 
+    // How often to check the mouse hook is still alive, and how long it may stay quiet first.
+    // The gap is generous on purpose: someone can genuinely not touch their mouse for a while,
+    // and reinstalling a healthy hook costs two syscalls, so erring towards reinstalling is
+    // cheap while erring the other way leaves the app silently dead until it is restarted.
+    private const uint WatchdogIntervalMs = 5_000;
+    private const long HookQuietBeforeReinstallMs = 20_000;
+    private static readonly IntPtr WatchdogTimerId = new(1);
+
     private readonly WndProc _wndProc;
     private readonly List<(int Id, uint Modifiers, uint VirtualKey)> _pendingHotkeys = [];
     private Thread? _thread;
@@ -96,6 +104,7 @@ public sealed class Win32MessageWindow : IDisposable
             NativeMethods.RegisterHotKey(_hwnd, id, modifiers, vk);
         }
         NativeMethods.AddClipboardFormatListener(_hwnd);
+        NativeMethods.SetTimer(_hwnd, WatchdogTimerId, WatchdogIntervalMs, IntPtr.Zero);
 
         _ready.Set();
 
@@ -110,6 +119,7 @@ public sealed class Win32MessageWindow : IDisposable
 
     private void Cleanup()
     {
+        NativeMethods.KillTimer(_hwnd, WatchdogTimerId);
         NativeMethods.RemoveClipboardFormatListener(_hwnd);
         foreach (var (id, _, _) in _pendingHotkeys)
         {
@@ -136,12 +146,37 @@ public sealed class Win32MessageWindow : IDisposable
                 ClipboardChanged?.Invoke(this, EventArgs.Empty);
                 return IntPtr.Zero;
 
+            case NativeConstants.WM_TIMER when wParam == WatchdogTimerId:
+                CheckHooksAlive();
+                return IntPtr.Zero;
+
             case NativeConstants.WM_CLOSE:
                 NativeMethods.PostQuitMessage(0);
                 return IntPtr.Zero;
 
             default:
                 return NativeMethods.DefWindowProc(hWnd, msg, wParam, lParam);
+        }
+    }
+
+    /// <summary>
+    /// Windows silently removes a low-level hook whose callback overruns LowLevelHooksTimeout
+    /// (300ms by default), gives no notification that it did, and offers no way to ask whether a
+    /// hook is still installed. The callbacks simply stop, and every trigger stops working until
+    /// the application is restarted.
+    ///
+    /// Care in the callbacks is the real defence, but it cannot be a complete one: a GC pause or
+    /// a loaded machine can overrun the limit through no fault of this code. So notice the
+    /// silence and put the hook back. Runs on WM_TIMER, which means it runs on the thread that
+    /// owns the hooks — the only thread from which they may be reinstalled.
+    /// </summary>
+    private void CheckHooksAlive()
+    {
+        var quietFor = Environment.TickCount64 - MouseHook.LastCallbackTicks;
+        if (quietFor > HookQuietBeforeReinstallMs)
+        {
+            MouseHook.Reinstall();
+            KeyboardHook.Reinstall();
         }
     }
 

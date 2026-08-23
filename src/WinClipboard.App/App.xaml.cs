@@ -134,34 +134,65 @@ public partial class App : System.Windows.Application
         ShakeDirectionChanges = settings.ShakeDirectionChanges
     };
 
-    /// <summary>Union of every monitor's bounds, so the edge trigger works on whichever screen the drag is happening on (plan 6: multi-monitor / mixed-DPI risk).</summary>
+    private static ScreenRect _cachedScreenBounds;
+    private static long _screenBoundsCachedAtTicks;
+
+    /// <summary>
+    /// Union of every monitor's bounds, so the edge trigger works on whichever screen the drag is
+    /// happening on (plan 6: multi-monitor / mixed-DPI risk).
+    ///
+    /// Cached, because this is asked for on every mouse sample while a drag is in progress - which
+    /// is up to a thousand times a second on a high-polling-rate mouse, on the thread the mouse
+    /// hook runs on. The four SystemParameters reads behind it are not free, and the answer only
+    /// changes when a monitor is added, removed or rearranged. A second of staleness after that is
+    /// not something a drag can notice.
+    /// </summary>
     private static ScreenRect GetVirtualScreenBounds()
     {
+        var now = Environment.TickCount64;
+        if (now - _screenBoundsCachedAtTicks < 1000 && _cachedScreenBounds.Right != 0)
+        {
+            return _cachedScreenBounds;
+        }
+
         var left = (int)SystemParameters.VirtualScreenLeft;
         var top = (int)SystemParameters.VirtualScreenTop;
         var width = (int)SystemParameters.VirtualScreenWidth;
         var height = (int)SystemParameters.VirtualScreenHeight;
-        return new ScreenRect(left, top, left + width, top + height);
+
+        _cachedScreenBounds = new ScreenRect(left, top, left + width, top + height);
+        _screenBoundsCachedAtTicks = now;
+        return _cachedScreenBounds;
     }
+
+    // Everything below is raised on the Win32 message-loop thread, and that thread must never be
+    // made to wait on the UI thread. It owns the two low-level hooks, and Windows delivers
+    // WH_MOUSE_LL callbacks to it synchronously: if the thread is blocked, every mouse event on
+    // the machine is blocked with it, and once a callback overruns LowLevelHooksTimeout (300ms
+    // by default) Windows silently removes the hook, after which no trigger can ever fire again.
+    // Showing a window comfortably exceeds that on its first call, when the XAML is parsed.
+    // So these hand off with InvokeAsync and return immediately - never Invoke.
 
     private void OnHotkeyPressed(object? sender, int hotkeyId)
     {
         if (hotkeyId == HistoryHotkeyId)
         {
-            Dispatcher.Invoke(ToggleHistoryWindow);
+            Dispatcher.InvokeAsync(ToggleHistoryWindow);
         }
     }
 
     private void OnClipboardChangedOnBackgroundThread(object? sender, EventArgs e)
     {
         // WM_CLIPBOARDUPDATE arrives on the Win32 message-loop thread; Clipboard reads must
-        // happen on the WPF UI thread (see ClipboardMonitorService's class remarks).
-        Dispatcher.Invoke(() => _clipboardMonitor!.OnClipboardChanged());
+        // happen on the WPF UI thread (see ClipboardMonitorService's class remarks). Reading the
+        // clipboard can block for a long time on its own - another application may hold it open,
+        // and a large bitmap takes real work to marshal - so this must not be waited on here.
+        Dispatcher.InvokeAsync(() => _clipboardMonitor!.OnClipboardChanged());
     }
 
     private void OnDragTriggered(object? sender, DragTriggerEventArgs e)
     {
-        Dispatcher.Invoke(() => ShowBubble(e));
+        Dispatcher.InvokeAsync(() => ShowBubble(e));
     }
 
     private void ToggleHistoryWindow()
@@ -236,8 +267,21 @@ public partial class App : System.Windows.Application
     {
         SettingsPersistence.Save(Settings);
 
+        // Dispose, not just Stop: the old instance owns a thread, two installed hooks and a
+        // wait handle, and a settings save that only stopped it left all of that behind every
+        // time. Disposing also joins the thread, so the old hooks are guaranteed uninstalled
+        // before the new ones go in rather than both being live at once.
         _win32Window!.HotkeyPressed -= OnHotkeyPressed;
-        _win32Window.Stop();
+        _win32Window.ClipboardChanged -= OnClipboardChangedOnBackgroundThread;
+        _win32Window.Dispose();
+
+        // The trigger subscribes itself to the hooks in its constructor, so it belongs to the
+        // instance it was built against and is replaced along with it.
+        if (_dragTrigger is not null)
+        {
+            _dragTrigger.Triggered -= OnDragTriggered;
+        }
+
         _win32Window = new Win32MessageWindow();
         _win32Window.RegisterHotkey(HistoryHotkeyId, Settings.HistoryHotkeyModifiers, Settings.HistoryHotkeyVirtualKey);
         _win32Window.HotkeyPressed += OnHotkeyPressed;
@@ -257,7 +301,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _win32Window?.Stop();
+        _win32Window?.Dispose();
         _tray?.Dispose();
         _singleInstanceMutex?.ReleaseMutex();
         base.OnExit(e);
