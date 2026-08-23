@@ -16,3 +16,7 @@
 *.db
 *.db-shm
 *.db-wal
+
+# Developer-only source checker build output.
+tools/SourceCheck/bin/
+tools/SourceCheck/obj/
