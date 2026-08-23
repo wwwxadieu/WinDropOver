@@ -33,6 +33,9 @@ public partial class BubbleWindow : Window
     /// <summary>When set, the card shows this shelf instead of the default one.</summary>
     private long? _pinnedShelfId;
     private Point? _dragStartPoint;
+
+    /// <summary>What the card is showing right now. Kept because starting a drag has to build its payload synchronously — DoDragDrop blocks for the length of the gesture, so there is no awaiting the repository in the middle of one.</summary>
+    private List<ShelfItemView> _currentViews = [];
     private bool _suppressDeactivateHide;
 
     public BubbleWindow(App app)
@@ -258,34 +261,262 @@ public partial class BubbleWindow : Window
         _shelfId = _pinnedShelfId ?? await _app.ShelfSession.EnsureDefaultShelfAsync();
         var items = await _app.ShelfSession.GetItemsAsync(_shelfId);
         var views = await ShelfItemView.BuildAsync(items, ThumbnailPixelWidth);
+        _currentViews = views;
 
-        CountText.Text = $"{items.Count} mục";
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         RecallHint.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         // Nothing to clear on an empty shelf, and a live-looking button that does nothing is
         // worse than no button.
         ClearButton.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
+        SummaryPill.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        SummaryText.Text = Summarise(views);
+        ShowContents(views);
+        return items.Count;
+    }
+
+    /// <summary>
+    /// Names the pile the way someone would out loud — "3 tài liệu", "5 ảnh" — falling back to the
+    /// neutral word once it holds more than one kind of thing.
+    /// </summary>
+    private static string Summarise(List<ShelfItemView> views)
+    {
+        if (views.Count == 0)
+        {
+            return "0 mục";
+        }
+        if (views.All(v => v.IsImage))
+        {
+            return $"{views.Count} ảnh";
+        }
+        if (views.All(v => v.Model.Type == ShelfItemType.File))
+        {
+            return $"{views.Count} tài liệu";
+        }
+        return $"{views.Count} mục";
+    }
+
+    /// <summary>Whether the pill has been used to open the detail list. Resets when the shelf empties, so the next drag starts on the stack again.</summary>
+    private bool _showDetails;
+
+    private void ShowContents(List<ShelfItemView> views)
+    {
+        if (views.Count == 0)
+        {
+            _showDetails = false;
+        }
+
         // Grid only when the shelf is nothing but images. Anything else goes to the list: one
         // document among the photos makes a grid of thumbnails misleading, since that item is the
         // one the grid cannot show, and a name is what identifies it.
         var allImages = views.Count > 0 && views.All(v => v.IsImage);
-        ShowItems(allImages ? ThumbnailGrid : ItemsList, views);
-        return items.Count;
-    }
+        var detailView = allImages ? ThumbnailGrid : ItemsList;
+        var otherView = allImages ? ItemsList : ThumbnailGrid;
 
-    private void ShowItems(ListBox visible, List<ShelfItemView> views)
-    {
-        var hidden = ReferenceEquals(visible, ItemsList) ? ThumbnailGrid : ItemsList;
-
-        visible.ItemsSource = views;
-        visible.Visibility = Visibility.Visible;
-
-        // Release the other view's items rather than only hiding it: leaving both bound would
+        // Release the hidden views' items rather than only hiding them: leaving them bound would
         // hold every decoded thumbnail twice for as long as the card lives.
-        hidden.ItemsSource = null;
-        hidden.Visibility = Visibility.Collapsed;
+        otherView.ItemsSource = null;
+        otherView.Visibility = Visibility.Collapsed;
+
+        if (_showDetails && views.Count > 0)
+        {
+            detailView.ItemsSource = views;
+            detailView.Visibility = Visibility.Visible;
+            StackView.Visibility = Visibility.Collapsed;
+            ClearStack();
+        }
+        else
+        {
+            detailView.ItemsSource = null;
+            detailView.Visibility = Visibility.Collapsed;
+            StackView.Visibility = views.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            BuildStack(views);
+        }
+
+        SummaryChevron.Data = (Geometry)FindResource(_showDetails ? "IconChevronDown" : "IconChevronRight");
     }
+
+    // ---------------- The fanned stack ----------------
+
+    /// <summary>
+    /// How the sheets sit for each possible count, back to front. The last entry of each row is
+    /// the one on top, and it is always upright and near the middle — the fan reads as a pile
+    /// someone set down, and a pile has a front.
+    ///
+    /// Laid out per count rather than as fixed slots because a fan built for four and then given
+    /// two leaves a lopsided gap where the missing sheets were.
+    /// </summary>
+    private static readonly (double Angle, double OffsetX)[][] FanLayouts =
+    [
+        [],
+        [(0, 0)],
+        [(-9, -26), (4, 8)],
+        [(-13, -40), (13, 40), (0, 0)],
+        [(-16, -50), (16, 50), (-6, -18), (2, 8)]
+    ];
+
+    /// <summary>More than this and the extra sheets would be hidden behind the fan anyway; the pill carries the real count.</summary>
+    private const int MaxStackSheets = 4;
+
+    private void BuildStack(List<ShelfItemView> views)
+    {
+        ClearStack();
+
+        var shown = Math.Min(views.Count, MaxStackSheets);
+        if (shown == 0)
+        {
+            return;
+        }
+
+        var layout = FanLayouts[shown];
+        for (var slot = 0; slot < shown; slot++)
+        {
+            var (card, icon, thumb) = StackSlot(slot);
+            // Back to front: the newest arrival ends up on top, which is what the eye goes to and
+            // what the user just dropped.
+            var view = views[views.Count - shown + slot];
+
+            card.RenderTransform = new TransformGroup
+            {
+                Children =
+                {
+                    new RotateTransform(layout[slot].Angle),
+                    new TranslateTransform(layout[slot].OffsetX, 0)
+                }
+            };
+            card.Visibility = Visibility.Visible;
+            card.ToolTip = view.ToolTipText;
+
+            if (view.Thumbnail is not null)
+            {
+                thumb.Source = view.Thumbnail;
+                thumb.Visibility = Visibility.Visible;
+            }
+            else if (view.Icon is not null)
+            {
+                icon.Source = view.Icon;
+                icon.Visibility = Visibility.Visible;
+            }
+        }
+    }
+
+    private void ClearStack()
+    {
+        for (var slot = 0; slot < MaxStackSheets; slot++)
+        {
+            var (card, icon, thumb) = StackSlot(slot);
+            card.Visibility = Visibility.Collapsed;
+            card.ToolTip = null;
+            // Dropped rather than merely hidden, so a shelf that has been emptied is not still
+            // holding every decoded preview it used to show.
+            icon.Source = null;
+            icon.Visibility = Visibility.Collapsed;
+            thumb.Source = null;
+            thumb.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private (Border Card, Image Icon, Image Thumb) StackSlot(int slot) => slot switch
+    {
+        0 => (StackCard0, StackIcon0, StackThumb0),
+        1 => (StackCard1, StackIcon1, StackThumb1),
+        2 => (StackCard2, StackIcon2, StackThumb2),
+        _ => (StackCard3, StackIcon3, StackThumb3)
+    };
+
+    private void OnStackPreviewMouseDown(object sender, MouseButtonEventArgs e) => _dragStartPoint = e.GetPosition(null);
+
+    /// <summary>
+    /// Dragging the stack takes the whole shelf, which is the gesture the pile is drawn to invite:
+    /// the point of collecting five files in one place is to move five files in one motion. The
+    /// detail list is still where a single item can be picked out on its own.
+    /// </summary>
+    private void OnStackMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var diff = _dragStartPoint.Value - e.GetPosition(null);
+        if (Math.Abs(diff.X) < 8 && Math.Abs(diff.Y) < 8)
+        {
+            return;
+        }
+        _dragStartPoint = null;
+
+        var data = BuildStackDragData();
+        if (data is not null)
+        {
+            DragDrop.DoDragDrop(StackView, data, DragDropEffects.Copy | DragDropEffects.Move);
+        }
+    }
+
+    /// <summary>Every file the shelf holds as one FileDrop, or every text item as one block when it holds no files at all.</summary>
+    private System.Windows.DataObject? BuildStackDragData()
+    {
+        if (_currentViews.Count == 0)
+        {
+            return null;
+        }
+
+        var paths = _currentViews
+            .Where(v => v.Model.Type == ShelfItemType.File && v.Model.FilePath is not null)
+            .Select(v => v.Model.FilePath!)
+            .ToArray();
+
+        var data = paths.Length > 0
+            ? new System.Windows.DataObject(DataFormats.FileDrop, paths)
+            : BuildTextDragData();
+        if (data is null)
+        {
+            return null;
+        }
+
+        // Same marker a single item carries, so dropping the pile onto one of this card's own
+        // action tiles acts on exactly these items rather than collecting them a second time.
+        data.SetData(ShelfItemIdsFormat, string.Join(',', _currentViews.Select(v => v.Model.Id)));
+        return data;
+    }
+
+    private System.Windows.DataObject? BuildTextDragData()
+    {
+        var text = _currentViews
+            .Where(v => v.Model.TextContent is not null)
+            .Select(v => v.Model.TextContent!)
+            .ToList();
+        return text.Count > 0
+            ? new System.Windows.DataObject(DataFormats.UnicodeText, string.Join(Environment.NewLine, text))
+            : null;
+    }
+
+    /// <summary>
+    /// Opens the detail list without a click, for the screenshot harness. The stack is the default
+    /// view now, so without this the grid and list layouts — and the thumbnail decode behind them
+    /// — would go unrendered on every CI run.
+    /// </summary>
+    internal Task ShowDetailsAsync()
+    {
+        _showDetails = true;
+        return ReloadAsync();
+    }
+
+    private async void OnToggleDetailsClicked(object sender, RoutedEventArgs e)
+    {
+        _showDetails = !_showDetails;
+        try
+        {
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble toggle details", ex);
+        }
+        RestartAutoHideTimer();
+    }
+
+    /// <summary>Puts the card away without touching what it holds — the same thing clicking outside does, for people who would rather press a button.</summary>
+    private void OnCloseClicked(object sender, RoutedEventArgs e) => HideWithAnimation();
 
     private void RestartAutoHideTimer()
     {

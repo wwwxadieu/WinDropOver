@@ -9,7 +9,7 @@
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="NoResize"
-        Width="340" Height="356"
+        Width="340" Height="400"
         AllowDrop="True"
         SourceInitialized="OnSourceInitialized"
         DragEnter="OnDragEnter"
@@ -22,9 +22,9 @@
             The card's rounded outline, used to clip the glass layers. A Border's CornerRadius
             rounds what it paints but not what it contains, and ClipToBounds squares the corners
             off again, so the blur needs a geometry of its own. Literal because the window is a
-            fixed size: 340x356 less the 12px margin the shadow needs to spill into.
+            fixed size: 340x400 less the 12px margin the shadow needs to spill into.
         -->
-        <RectangleGeometry x:Key="CardClip" Rect="0,0,316,332" RadiusX="14" RadiusY="14" />
+        <RectangleGeometry x:Key="CardClip" Rect="0,0,316,376" RadiusX="14" RadiusY="14" />
     </Window.Resources>
 
     <!--
@@ -76,21 +76,27 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" Margin="0,0,0,10">
-                    <Button x:Name="ClearButton" DockPanel.Dock="Right" Width="26" Height="26"
+                <!--
+                    No shelf name and no count here. The card only ever shows one shelf, so naming
+                    it said nothing, and the count now lives on the pill below the stack where it
+                    doubles as the control that opens the list.
+                -->
+                <Grid Grid.Row="0" Margin="0,0,0,4">
+                    <Button x:Name="CloseButton" HorizontalAlignment="Left"
+                            Tag="{StaticResource IconClose}" ToolTip="Ẩn shelf (Ctrl+Shift+D để gọi lại)"
+                            Style="{StaticResource CircleIconButtonStyle}" Click="OnCloseClicked" />
+                    <!-- The grab bar. It marks the card as a thing that sits above your work rather than part of it. -->
+                    <Border Width="34" Height="4" CornerRadius="2" HorizontalAlignment="Center"
+                            VerticalAlignment="Center" Background="{StaticResource ScrollThumbBrush}"
+                            IsHitTestVisible="False" />
+                    <Button x:Name="ClearButton" HorizontalAlignment="Right"
                             Tag="{StaticResource IconTrash}" ToolTip="Xoá hết nội dung trong shelf"
-                            Style="{StaticResource DangerIconButtonStyle}" Visibility="Collapsed"
+                            Style="{StaticResource CircleDangerButtonStyle}" Visibility="Collapsed"
                             Click="OnClearClicked" />
-                    <!--
-                        No shelf name. There is only ever one shelf on this card, so naming it said
-                        nothing the user did not already know, and "Shelf 1" was taking the most
-                        prominent line of a 316px-wide window to say it.
-                    -->
-                    <TextBlock x:Name="CountText" Text="0 mục" Foreground="{StaticResource TextSecondaryBrush}"
-                               FontSize="11" VerticalAlignment="Center" />
-                </DockPanel>
+                </Grid>
 
                 <!--
                     Two views of the same shelf, one visible at a time — the card picks between them
@@ -101,7 +107,50 @@
                     The whole card takes drops; these are only where what landed is shown.
                 -->
                 <Grid Grid.Row="1">
-                    <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0"
+                    <!--
+                        The default view: what the shelf holds, fanned out like a handful of paper.
+
+                        A list of filenames is the wrong first answer for a shelf. The question it
+                        exists to answer mid-drag is "did that land, and is this the pile I meant"
+                        — which a glance at the actual documents settles and a column of truncated
+                        names does not. Names, sizes and paths are still a click away on the pill.
+
+                        Four slots, drawn back to front; the last one is always the upright card on
+                        top. Their transforms are assigned in code because the fan has to reshape
+                        itself for one, two, three or four items rather than leaving gaps.
+                    -->
+                    <Grid x:Name="StackView" Visibility="Collapsed" Background="Transparent"
+                          ToolTip="Kéo cả chồng ra nơi cần"
+                          PreviewMouseLeftButtonDown="OnStackPreviewMouseDown"
+                          MouseMove="OnStackMouseMove"
+                          MouseLeftButtonUp="OnItemMouseUp">
+                        <Border x:Name="StackCard0" Style="{StaticResource StackCardStyle}">
+                            <Grid>
+                                <Image x:Name="StackIcon0" Style="{StaticResource StackIconStyle}" />
+                                <Image x:Name="StackThumb0" Style="{StaticResource StackThumbStyle}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="StackCard1" Style="{StaticResource StackCardStyle}">
+                            <Grid>
+                                <Image x:Name="StackIcon1" Style="{StaticResource StackIconStyle}" />
+                                <Image x:Name="StackThumb1" Style="{StaticResource StackThumbStyle}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="StackCard2" Style="{StaticResource StackCardStyle}">
+                            <Grid>
+                                <Image x:Name="StackIcon2" Style="{StaticResource StackIconStyle}" />
+                                <Image x:Name="StackThumb2" Style="{StaticResource StackThumbStyle}" />
+                            </Grid>
+                        </Border>
+                        <Border x:Name="StackCard3" Style="{StaticResource StackCardStyle}">
+                            <Grid>
+                                <Image x:Name="StackIcon3" Style="{StaticResource StackIconStyle}" />
+                                <Image x:Name="StackThumb3" Style="{StaticResource StackThumbStyle}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <ListBox x:Name="ItemsList" Visibility="Collapsed" Background="Transparent" BorderThickness="0"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
@@ -195,13 +244,30 @@
                                Foreground="{StaticResource TextMutedBrush}" FontSize="11"
                                Margin="0,4,0,0" HorizontalAlignment="Center" />
                 </StackPanel>
-            </Grid>
+                </Grid>
+
+                <!--
+                    Says what the pile is — "3 tài liệu", "5 ảnh" — and opens the detail list, which
+                    is where names, sizes and paths live. One control doing both because they are
+                    the same question asked at two levels of detail.
+                -->
+                <Button x:Name="SummaryPill" Grid.Row="2" HorizontalAlignment="Center" Margin="0,8,0,0"
+                        Style="{StaticResource PillButtonStyle}" Visibility="Collapsed"
+                        Click="OnToggleDetailsClicked">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="SummaryText" Text="0 mục" FontSize="11" VerticalAlignment="Center" />
+                        <Path x:Name="SummaryChevron" Data="{StaticResource IconChevronRight}" Width="14" Height="14"
+                              Margin="6,0,0,0" Stretch="Uniform" VerticalAlignment="Center"
+                              Stroke="{StaticResource TextMutedBrush}" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                    </StackPanel>
+                </Button>
 
             <!--
                 Always present, not only on an empty shelf. Dropping onto a tile runs that action
                 on just what was dropped; clicking it runs it on everything the shelf holds.
             -->
-            <UniformGrid x:Name="ActionBar" Grid.Row="2" Rows="1" Margin="0,10,0,0">
+            <UniformGrid x:Name="ActionBar" Grid.Row="3" Rows="1" Margin="0,10,0,0">
                 <Button Content="Chuyển" Tag="{x:Static models:QuickActionType.MoveToFolder}"
                         ToolTip="Thả vào đây để chuyển, hoặc bấm để chuyển cả shelf"
                         Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
@@ -227,7 +293,7 @@
                 costing the user work: an empty shelf that disappears is no loss, one holding
                 files that vanishes on a stray click is unusable if you cannot get it back.
             -->
-            <TextBlock x:Name="RecallHint" Grid.Row="3" Visibility="Collapsed"
+            <TextBlock x:Name="RecallHint" Grid.Row="4" Visibility="Collapsed"
                        Text="Bấm ra ngoài để ẩn · Ctrl+Shift+D để gọi lại tại con trỏ"
                        Foreground="{StaticResource TextMutedBrush}" FontSize="10"
                        TextAlignment="Center" Margin="0,8,0,0" />

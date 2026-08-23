@@ -73,6 +73,7 @@
     <PathGeometry x:Key="IconClose" Figures="M 18,6 L 6,18 M 6,6 L 18,18" />
     <PathGeometry x:Key="IconChevronUp" Figures="M 18,15 L 12,9 L 6,15" />
     <PathGeometry x:Key="IconChevronDown" Figures="M 6,9 L 12,15 L 18,9" />
+    <PathGeometry x:Key="IconChevronRight" Figures="M 9,6 L 15,12 L 9,18" />
     <PathGeometry x:Key="IconPlus" Figures="M 6,12 L 18,12 M 12,6 L 12,18" />
     <!-- Alone inside the checkbox, so it is not competing with a neighbour for size. -->
     <PathGeometry x:Key="IconCheck" Figures="M 19,7 L 9.5,16.5 L 5,12" />
@@ -230,6 +231,146 @@
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource RowSelectedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The shelf card's own header buttons: filled circles rather than the flat square hit areas
+        used elsewhere. They float over a translucent pane with no toolbar behind them, so the
+        filled disc is what makes them read as buttons at all — without it they are two glyphs
+        sitting on top of a photograph.
+    -->
+    <Style x:Key="CircleIconButtonStyle" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+        <Setter Property="Width" Value="28" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{StaticResource ControlBrush}" CornerRadius="14">
+                        <Viewbox Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Canvas Width="24" Height="24">
+                                <Path x:Name="Icon"
+                                      Data="{TemplateBinding Tag}"
+                                      Stroke="{TemplateBinding Foreground}"
+                                      StrokeThickness="2.4"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource RowSelectedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Same circle, red on hover, for the one destructive control in the card header. -->
+    <Style x:Key="CircleDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource CircleIconButtonStyle}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{StaticResource ControlBrush}" CornerRadius="14">
+                        <Viewbox Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Canvas Width="24" Height="24">
+                                <Path x:Name="Icon"
+                                      Data="{TemplateBinding Tag}"
+                                      Stroke="{TemplateBinding Foreground}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                            <Setter TargetName="Icon" Property="Stroke" Value="{StaticResource DangerBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        One sheet in the fanned stack on the shelf card.
+
+        Paper-coloured rather than themed: these stand for the documents themselves, and a
+        document is a white rectangle regardless of what the surrounding window looks like. That
+        is also what makes the fan legible against the card's own dark glass — a stack of dark
+        cards on a dark pane is a smudge.
+
+        RenderTransformOrigin at the centre so the rotation assigned in code turns each sheet
+        about its own middle rather than swinging it from the corner.
+    -->
+    <Style x:Key="StackCardStyle" TargetType="Border">
+        <Setter Property="Width" Value="88" />
+        <Setter Property="Height" Value="108" />
+        <Setter Property="CornerRadius" Value="7" />
+        <Setter Property="Background" Value="#FFF7F7F9" />
+        <Setter Property="BorderBrush" Value="#33000000" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="Black" Opacity="0.4" BlurRadius="12" ShadowDepth="3" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A document sheet shows the file's own icon, centred, the way a folder view would. -->
+    <Style x:Key="StackIconStyle" TargetType="Image">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="Stretch" Value="Uniform" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+        <Setter Property="Visibility" Value="Collapsed" />
+    </Style>
+
+    <!-- An image fills its sheet edge to edge instead: the picture is the preview. -->
+    <Style x:Key="StackThumbStyle" TargetType="Image">
+        <Setter Property="Stretch" Value="UniformToFill" />
+        <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+        <Setter Property="Visibility" Value="Collapsed" />
+    </Style>
+
+    <!--
+        The capsule under the stack that names what the shelf is holding and opens the detail list.
+        Its own style rather than a themed Button because it is the one control on the card that is
+        meant to look like a label you can press, not a button you must.
+    -->
+    <Style x:Key="PillButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource ControlBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Padding" Value="12,5" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="13"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource ControlHoverBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

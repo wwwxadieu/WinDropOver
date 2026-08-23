@@ -186,7 +186,7 @@ internal static class ScreenshotCapture
         // The same card switched to a different shelf, not a second one: the shelf's glass is a
         // blurred photograph of whatever it is covering, so a second card opened over the first
         // would come out with the first one frosted into its own background.
-        await StepAsync("bubble (thumbnail grid)", "02b-bubble-thumbnails.png", async () =>
+        await StepAsync("bubble (detail grid)", "02b-bubble-thumbnails.png", async () =>
         {
             if (bubble is null)
             {
@@ -195,6 +195,9 @@ internal static class ScreenshotCapture
             var shelves = await app.ShelfSession.GetShelvesAsync();
             var photoShelf = shelves.First(sh => sh.Name == "Ảnh gửi khách");
             await bubble.ShowShelfAsync(photoShelf.Id, 600, 400);
+            // Opened to the detail view on purpose: the card defaults to the fanned stack, so the
+            // grid layout and the thumbnail decode behind it would otherwise never be drawn here.
+            await bubble.ShowDetailsAsync();
             return bubble;
         });
 
