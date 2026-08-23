@@ -9,13 +9,14 @@
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="NoResize"
-        Width="316" Height="300"
+        Width="316" Height="320"
         AllowDrop="True"
         SourceInitialized="OnSourceInitialized"
         DragEnter="OnDragEnter"
         DragOver="OnDragOver"
         DragLeave="OnDragLeave"
-        Drop="OnDrop">
+        Drop="OnDrop"
+        Deactivated="OnDeactivated">
     <!--
         Glass by translucency rather than by DWM's acrylic backdrop. The real thing would blur
         what is behind the window instead of merely tinting it, but it requires turning
@@ -34,6 +35,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -147,6 +149,16 @@
                         ToolTip="Mở panel đầy đủ: nhiều shelf, đổi tên, sắp xếp"
                         Style="{StaticResource QuickActionButtonStyle}" Click="OnOpenPanelClicked" />
             </UniformGrid>
+
+            <!--
+                Shown only once the shelf holds something, which is exactly when hiding it starts
+                costing the user work: an empty shelf that disappears is no loss, one holding
+                files that vanishes on a stray click is unusable if you cannot get it back.
+            -->
+            <TextBlock x:Name="RecallHint" Grid.Row="3" Visibility="Collapsed"
+                       Text="Bấm ra ngoài để ẩn · Ctrl+Shift+D để gọi lại tại con trỏ"
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                       TextAlignment="Center" Margin="0,8,0,0" />
         </Grid>
     </Border>
 </Window>

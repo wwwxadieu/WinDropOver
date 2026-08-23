@@ -104,6 +104,7 @@ public partial class BubbleWindow : Window
         ShelfNameText.Text = shelf?.Name ?? "Shelf";
         CountText.Text = $"{items.Count} mục";
         EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        RecallHint.Visibility = items.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
 
         // Grid only when the shelf is nothing but images. Anything else goes to the list: one
         // document among the photos makes a grid of thumbnails misleading, since that item is the
@@ -142,6 +143,27 @@ public partial class BubbleWindow : Window
         _autoHideTimer.Stop();
         // Only an empty shelf goes away on its own; one holding something is still wanted.
         if (await ReloadAsync() == 0 && !_suppressDeactivateHide)
+        {
+            Hide();
+        }
+    }
+
+    /// <summary>
+    /// Clicking away puts the shelf out of the way — it is a floating card over other people's
+    /// windows, so leaving it parked there is its own kind of rude.
+    ///
+    /// What makes this safe to do is that it can be brought back: Ctrl+Shift+D reopens it at the
+    /// pointer, which is where you need it, having navigated somewhere else in order to drag its
+    /// contents out. Without that a shelf holding files would vanish on a stray click with no way
+    /// back to it, so the two halves have to ship together.
+    ///
+    /// Nothing is discarded — the shelf keeps everything, this only hides the window.
+    /// </summary>
+    private void OnDeactivated(object? sender, EventArgs e)
+    {
+        // A modal folder picker deactivates this window too, and hiding the shelf out from under
+        // the dialog the user opened from it would be absurd.
+        if (!_suppressDeactivateHide)
         {
             Hide();
         }

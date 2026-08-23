@@ -14,6 +14,7 @@ namespace WinClipboard.App;
 public partial class App : System.Windows.Application
 {
     private const int HistoryHotkeyId = 1;
+    private const int ShelfHotkeyId = 2;
 
     private Mutex? _singleInstanceMutex;
     private Win32MessageWindow? _win32Window;
@@ -78,6 +79,7 @@ public partial class App : System.Windows.Application
 
         _win32Window = new Win32MessageWindow();
         _win32Window.RegisterHotkey(HistoryHotkeyId, Settings.HistoryHotkeyModifiers, Settings.HistoryHotkeyVirtualKey);
+        _win32Window.RegisterHotkey(ShelfHotkeyId, Settings.ShelfHotkeyModifiers, Settings.ShelfHotkeyVirtualKey);
         _win32Window.HotkeyPressed += OnHotkeyPressed;
         _win32Window.ClipboardChanged += OnClipboardChangedOnBackgroundThread;
         // These are failures the interop layer swallowed to keep a native callback from killing
@@ -160,6 +162,12 @@ public partial class App : System.Windows.Application
         if (hotkeyId == HistoryHotkeyId)
         {
             Dispatcher.InvokeAsync(ToggleHistoryWindow);
+        }
+        else if (hotkeyId == ShelfHotkeyId)
+        {
+            // At the pointer, because the point of this shortcut is to put the shelf where you
+            // have just navigated to in order to drag its contents out.
+            Dispatcher.InvokeAsync(() => _ = ReportIfFaultedAsync(_bubbleWindow!.ShowAtCursorAsync()));
         }
     }
 
@@ -279,6 +287,7 @@ public partial class App : System.Windows.Application
 
         _win32Window = new Win32MessageWindow();
         _win32Window.RegisterHotkey(HistoryHotkeyId, Settings.HistoryHotkeyModifiers, Settings.HistoryHotkeyVirtualKey);
+        _win32Window.RegisterHotkey(ShelfHotkeyId, Settings.ShelfHotkeyModifiers, Settings.ShelfHotkeyVirtualKey);
         _win32Window.HotkeyPressed += OnHotkeyPressed;
         _win32Window.ClipboardChanged += OnClipboardChangedOnBackgroundThread;
         _win32Window.CallbackFailed += (_, ex) => CrashLog.Write("Win32 callback", ex);

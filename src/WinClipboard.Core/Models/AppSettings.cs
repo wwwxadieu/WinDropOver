@@ -24,6 +24,15 @@ public sealed class AppSettings
     public uint HistoryHotkeyModifiers { get; set; } = HotkeyModifierValues.Control | HotkeyModifierValues.Shift;
     public uint HistoryHotkeyVirtualKey { get; set; } = 0x56; // 'V'
 
+    /// <summary>
+    /// Brings the shelf back at the pointer (Ctrl+Shift+D by default). Needed because the shelf
+    /// hides when you click away from it, and the moment you want it again is when you have
+    /// navigated somewhere else to drag its contents out — at which point there is no drag in
+    /// progress, so none of the drag gestures can summon it.
+    /// </summary>
+    public uint ShelfHotkeyModifiers { get; set; } = HotkeyModifierValues.Control | HotkeyModifierValues.Shift;
+    public uint ShelfHotkeyVirtualKey { get; set; } = 0x44; // 'D'
+
     // --- Clipboard history ---
     public int MaxHistoryItems { get; set; } = 500;
     public double? SensitiveDataPurgeAfterHours { get; set; }
