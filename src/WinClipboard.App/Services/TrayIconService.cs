@@ -41,7 +41,6 @@ public sealed class TrayIconService : IDisposable
             ContextMenuStrip = menu,
             Visible = true
         };
-        _notifyIcon.DoubleClick += (_, _) => OpenHistoryRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

@@ -33,6 +33,40 @@ public sealed class ShelfItemView
     /// </summary>
     public ImageSource? Icon { get; init; }
 
+    /// <summary>
+    /// The second line under the name: what the item is and how big it is.
+    ///
+    /// A filename alone does not answer the questions a collecting shelf raises — is this the
+    /// 4 MB export or the 400 KB draft, is this the folder or the zip of it — and the shelf is
+    /// narrow enough that names are usually truncated before the extension is even visible.
+    /// </summary>
+    public string? Details { get; init; }
+
+    public Visibility DetailsVisibility => string.IsNullOrEmpty(Details) ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>
+    /// Everything known about the item, for hovering: name, what it is and how big, and — for a
+    /// file — where it actually lives. The path is the one thing no row has room to show and the
+    /// thing most worth asking about, since two files collected from different folders can have
+    /// the same name and the shelf gives no other way to tell them apart.
+    /// </summary>
+    public string ToolTipText
+    {
+        get
+        {
+            var lines = new List<string> { DisplayName };
+            if (!string.IsNullOrEmpty(Details))
+            {
+                lines.Add(Details);
+            }
+            if (Model.Type == ShelfItemType.File && !string.IsNullOrEmpty(Model.FilePath))
+            {
+                lines.Add(Model.FilePath);
+            }
+            return string.Join("\n", lines);
+        }
+    }
+
     public bool IsImage =>
         Model.Type == ShelfItemType.File &&
         Model.FilePath is not null &&
@@ -73,25 +107,37 @@ public sealed class ShelfItemView
     /// </summary>
     public static async Task<List<ShelfItemView>> BuildAsync(IReadOnlyList<ShelfItem> items, int thumbnailPixelWidth)
     {
+        // One hop to the pool for every filesystem question the list raises, rather than one per
+        // item: each answer is a metadata call that is nothing locally and can stall for seconds
+        // on a network share or a drive that has been unplugged.
+        var details = await Task.Run(() => items.Select(Describe).ToList());
+
         var views = new List<ShelfItemView>(items.Count);
-        foreach (var item in items)
+        for (var i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             var view = From(item);
             if (view.IsImage)
             {
                 views.Add(new ShelfItemView
                 {
                     Model = item,
+                    Details = details[i],
                     Thumbnail = await LoadThumbnailAsync(item.FilePath!, thumbnailPixelWidth)
                 });
             }
             else if (item.Type == ShelfItemType.File && item.FilePath is not null)
             {
-                views.Add(new ShelfItemView { Model = item, Icon = await ShellIconCache.GetAsync(item.FilePath) });
+                views.Add(new ShelfItemView
+                {
+                    Model = item,
+                    Details = details[i],
+                    Icon = await ShellIconCache.GetAsync(item.FilePath)
+                });
             }
             else
             {
-                views.Add(view);
+                views.Add(new ShelfItemView { Model = item, Details = details[i] });
             }
         }
         return views;
@@ -123,6 +169,63 @@ public sealed class ShelfItemView
             return null;
         }
     });
+
+    private static string? Describe(ShelfItem item) => item.Type switch
+    {
+        ShelfItemType.File when item.FilePath is not null => DescribeFile(item.FilePath),
+        ShelfItemType.Text when item.TextContent is not null => $"Văn bản · {item.TextContent.Length:N0} ký tự",
+        ShelfItemType.Link when item.TextContent is not null => DescribeLink(item.TextContent),
+        _ => null
+    };
+
+    private static string? DescribeFile(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                return "Thư mục";
+            }
+
+            var kind = Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
+            if (kind.Length == 0)
+            {
+                kind = "Tệp";
+            }
+
+            var info = new FileInfo(path);
+            // Worth saying out loud rather than leaving as a size that never appears: the shelf
+            // holds paths, so a file moved or deleted after it was collected still has a row here,
+            // and this is the only place that would tell the user why dragging it back out fails.
+            return info.Exists ? $"{kind} · {FormatSize(info.Length)}" : $"{kind} · không tìm thấy";
+        }
+        catch
+        {
+            // An unreadable path is still a row on the shelf; it just has nothing to say about
+            // itself. A permission error here must not cost the whole list.
+            return null;
+        }
+    }
+
+    private static string DescribeLink(string text) =>
+        Uri.TryCreate(text, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host)
+            ? $"Liên kết · {uri.Host}"
+            : "Liên kết";
+
+    private static string FormatSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        // Bytes are whole things; a decimal place on them reads as a mistake.
+        return unit == 0 ? $"{bytes} B" : $"{size:0.#} {units[unit]}";
+    }
 
     private static string Truncate(string text, int maxLength)
     {

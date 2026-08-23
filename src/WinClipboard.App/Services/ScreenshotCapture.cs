@@ -265,14 +265,29 @@ internal static class ScreenshotCapture
         workShelf.Name = "Công việc";
         await app.ShelfSession.UpdateShelfAsync(workShelf);
 
-        var workFiles = new[] { "bao-cao-q3.docx", "so-lieu.xlsx", "anh-bia.png" };
+        // Written to disk for the same reason the photo shelf below is: each row asks the shell
+        // for the file's icon and the filesystem for its size, and a path that does not exist
+        // exercises neither — it just renders "không tìm thấy" and leaves both paths untested on
+        // every CI run. The sizes differ so the second line is visibly saying something.
+        var workDirectory = Path.Combine(outputDirectory, "screenshot-data", "documents");
+        Directory.CreateDirectory(workDirectory);
+        var workFiles = new[]
+        {
+            ("bao-cao-q3.docx", 184_320),
+            ("so-lieu.xlsx", 27_648),
+            ("ghi-chu.txt", 1_204)
+        };
         for (var i = 0; i < workFiles.Length; i++)
         {
+            var (name, size) = workFiles[i];
+            var path = Path.Combine(workDirectory, name);
+            File.WriteAllBytes(path, new byte[size]);
+
             await app.ShelfSession.AddItemAsync(new ShelfItem
             {
                 ShelfId = workShelfId,
                 Type = ShelfItemType.File,
-                FilePath = $@"C:\Users\me\Documents\{workFiles[i]}",
+                FilePath = path,
                 AddedAt = now.AddMinutes(-i),
                 SortOrder = i
             });

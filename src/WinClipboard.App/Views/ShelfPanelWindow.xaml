@@ -52,9 +52,14 @@
                                        Visibility="{Binding IconVisibility}" />
                                 <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="16" Margin="0,0,8,0"
                                            VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
-                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="{StaticResource TextPrimaryBrush}"
-                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                           ToolTip="Bấm đúp để đổi tên" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" ToolTip="{Binding ToolTipText}">
+                                    <TextBlock Text="{Binding DisplayName}" Foreground="{StaticResource TextPrimaryBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Details}" FontSize="10" Margin="0,1,0,0"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding DetailsVisibility}" />
+                                </StackPanel>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Button Tag="{StaticResource IconChevronUp}" ToolTip="Lên"
                                             Style="{StaticResource IconButtonStyle}" Width="26" Click="OnMoveItemUpClicked" />
