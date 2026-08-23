@@ -115,6 +115,26 @@ public sealed class ShelfSessionManager : IShelfRepository
         return id;
     }
 
+    public async Task UpdateItemAsync(ShelfItem item, CancellationToken ct = default)
+    {
+        if (item.Id < 0)
+        {
+            // Session items are held by reference, so the caller already mutated the stored
+            // instance; this just keeps the contract and notifies listeners.
+            var items = _sessionItems.GetValueOrDefault(item.ShelfId);
+            var index = items?.FindIndex(i => i.Id == item.Id) ?? -1;
+            if (index >= 0)
+            {
+                items![index] = item;
+            }
+        }
+        else
+        {
+            await _persistentStore.UpdateItemAsync(item, ct);
+        }
+        ShelfItemsChanged?.Invoke(this, item.ShelfId);
+    }
+
     public async Task RemoveItemAsync(long itemId, CancellationToken ct = default)
     {
         if (itemId < 0)

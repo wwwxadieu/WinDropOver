@@ -17,7 +17,7 @@ public partial class App : System.Windows.Application
 
     private Mutex? _singleInstanceMutex;
     private Win32MessageWindow? _win32Window;
-    private EdgeAndHotkeyDragTrigger? _dragTrigger;
+    private ShelfDragTrigger? _dragTrigger;
     private ClipboardMonitorService? _clipboardMonitor;
     private ShelfSessionManager? _shelfSession;
     private TrayIconService? _tray;
@@ -71,7 +71,7 @@ public partial class App : System.Windows.Application
         _win32Window.HotkeyPressed += OnHotkeyPressed;
         _win32Window.ClipboardChanged += OnClipboardChangedOnBackgroundThread;
 
-        _dragTrigger = new EdgeAndHotkeyDragTrigger(
+        _dragTrigger = new ShelfDragTrigger(
             BuildDragTriggerOptions(Settings),
             GetVirtualScreenBounds,
             _win32Window.MouseHook,
@@ -83,6 +83,7 @@ public partial class App : System.Windows.Application
         StartupRegistration.SetEnabled(Settings.StartWithWindows);
 
         _tray = new TrayIconService();
+        _tray.OpenShelfRequested += (_, _) => Dispatcher.Invoke(ShowShelfFromTray);
         _tray.OpenHistoryRequested += (_, _) => Dispatcher.Invoke(ToggleHistoryWindow);
         _tray.OpenSettingsRequested += (_, _) => Dispatcher.Invoke(ShowSettingsWindow);
         _tray.ExitRequested += (_, _) => Dispatcher.Invoke(Shutdown);
@@ -127,7 +128,10 @@ public partial class App : System.Windows.Application
         DragThresholdPx = settings.DragThresholdPx,
         EdgeTriggerEnabled = settings.EdgeTriggerEnabled,
         HotkeyTriggerEnabled = settings.HotkeyTriggerEnabled,
-        HoldKeyVirtualCode = ModifierHoldKeyMap.ToVirtualKeyCode(settings.HoldKey)
+        HoldKeyVirtualCode = ModifierHoldKeyMap.ToVirtualKeyCode(settings.HoldKey),
+        ShakeTriggerEnabled = settings.ShakeTriggerEnabled,
+        ShakeSegmentDistancePx = settings.ShakeSegmentDistancePx,
+        ShakeDirectionChanges = settings.ShakeDirectionChanges
     };
 
     /// <summary>Union of every monitor's bounds, so the edge trigger works on whichever screen the drag is happening on (plan 6: multi-monitor / mixed-DPI risk).</summary>
@@ -181,6 +185,24 @@ public partial class App : System.Windows.Application
     }
 
     /// <summary>
+    /// Opens the bubble and its panel from the tray. Unlike the drag triggers this happens with no
+    /// drag in progress, so it goes straight to the expanded panel — the point is to look at what
+    /// the shelf holds, not to catch an incoming drop.
+    /// </summary>
+    private void ShowShelfFromTray()
+    {
+        _bubbleWindow ??= new BubbleWindow(this);
+        var edge = Settings.EnabledEdges.FirstOrDefault(ScreenEdge.Right);
+        _ = ReportIfFaultedAsync(ShowShelfAsync(edge));
+    }
+
+    private async Task ShowShelfAsync(ScreenEdge edge)
+    {
+        await _bubbleWindow!.ShowAtEdgeAsync(edge, forceVisible: true);
+        await GetOrCreatePanelWindow().ShowNextToAsync(_bubbleWindow, edge);
+    }
+
+    /// <summary>
     /// Awaits a fire-and-forget task and surfaces a failure instead of letting it vanish into an
     /// unobserved Task. Screenshot mode routes this to its log; a normal run shows a message box.
     /// </summary>
@@ -221,7 +243,7 @@ public partial class App : System.Windows.Application
         _win32Window.HotkeyPressed += OnHotkeyPressed;
         _win32Window.ClipboardChanged += OnClipboardChangedOnBackgroundThread;
 
-        _dragTrigger = new EdgeAndHotkeyDragTrigger(
+        _dragTrigger = new ShelfDragTrigger(
             BuildDragTriggerOptions(Settings),
             GetVirtualScreenBounds,
             _win32Window.MouseHook,

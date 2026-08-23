@@ -13,15 +13,24 @@ public sealed class DragTriggerEventArgs : EventArgs
 }
 
 /// <summary>
-/// Replaces the discarded mouse-shake detector (plan 1.2/3.2). Combines the left-button-down +
-/// move-past-threshold "is dragging" heuristic with either edge proximity or a held hotkey to
-/// decide when to raise the bubble. Runs entirely off events from the two low-level hooks, so it
-/// must be wired up on the same background thread that owns <see cref="Win32MessageWindow"/>.
+/// Decides when a drag in progress should raise the shelf bubble. Combines the left-button-down +
+/// move-past-threshold "is dragging" heuristic with any of three triggers, each independently
+/// switchable: a held hotkey, proximity to a screen edge, or a shake.
+///
+/// All three exist because Dropover itself offers several (its App Store listing calls the shake
+/// its "signature activation method", alongside a keyboard shortcut and the menu bar). The
+/// project's plan document had asserted the opposite — that shake was an invention with no
+/// precedent and that Dropover used edge-drag — so edge-drag was built first and shake added
+/// later; both are kept and the user picks.
+///
+/// Runs entirely off events from the two low-level hooks, so it must be wired up on the same
+/// background thread that owns <see cref="Win32MessageWindow"/>.
 /// </summary>
-public sealed class EdgeAndHotkeyDragTrigger
+public sealed class ShelfDragTrigger
 {
     private readonly DragTriggerOptions _options;
     private readonly Func<ScreenRect> _getVirtualScreenBounds;
+    private readonly ShakeDetector _shakeDetector;
 
     private bool _leftButtonDown;
     private bool _isDragging;
@@ -32,7 +41,7 @@ public sealed class EdgeAndHotkeyDragTrigger
 
     public event EventHandler<DragTriggerEventArgs>? Triggered;
 
-    public EdgeAndHotkeyDragTrigger(
+    public ShelfDragTrigger(
         DragTriggerOptions options,
         Func<ScreenRect> getVirtualScreenBounds,
         LowLevelMouseHook mouseHook,
@@ -40,6 +49,11 @@ public sealed class EdgeAndHotkeyDragTrigger
     {
         _options = options;
         _getVirtualScreenBounds = getVirtualScreenBounds;
+        _shakeDetector = new ShakeDetector
+        {
+            MinSegmentDistancePx = options.ShakeSegmentDistancePx,
+            RequiredDirectionChanges = options.ShakeDirectionChanges
+        };
         mouseHook.MouseEvent += OnMouseEvent;
         keyboardHook.KeyEvent += OnKeyEvent;
     }
@@ -61,6 +75,7 @@ public sealed class EdgeAndHotkeyDragTrigger
             _alreadyTriggeredThisDrag = false;
             _downX = e.X;
             _downY = e.Y;
+            _shakeDetector.Reset();
             return;
         }
 
@@ -69,6 +84,7 @@ public sealed class EdgeAndHotkeyDragTrigger
             _leftButtonDown = false;
             _isDragging = false;
             _alreadyTriggeredThisDrag = false;
+            _shakeDetector.Reset();
             return;
         }
 
@@ -89,6 +105,14 @@ public sealed class EdgeAndHotkeyDragTrigger
         if (_options.HotkeyTriggerEnabled && _holdKeyDown)
         {
             Fire(DragTriggerKind.Hotkey, edge: null, e.X, e.Y);
+            return;
+        }
+
+        // Fed before the edge check so a shake anywhere on screen wins; the detector keeps its own
+        // state, so it must see every sample even when the other triggers are the ones that fire.
+        if (_options.ShakeTriggerEnabled && _shakeDetector.AddSample(e.X, e.TimestampMs))
+        {
+            Fire(DragTriggerKind.Shake, edge: null, e.X, e.Y);
             return;
         }
 

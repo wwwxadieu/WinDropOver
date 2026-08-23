@@ -51,6 +51,12 @@ public sealed class InMemoryShelfRepository : IShelfRepository
         return Task.FromResult(item.Id);
     }
 
+    public Task UpdateItemAsync(ShelfItem item, CancellationToken ct = default)
+    {
+        _items[item.Id] = item;
+        return Task.CompletedTask;
+    }
+
     public Task RemoveItemAsync(long itemId, CancellationToken ct = default)
     {
         _items.Remove(itemId);

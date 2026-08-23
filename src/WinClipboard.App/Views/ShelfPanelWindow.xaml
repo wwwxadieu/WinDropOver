@@ -43,8 +43,14 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="{StaticResource TextPrimaryBrush}"
-                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                <Button Grid.Column="2" Content="&#10005;" Style="{StaticResource IconButtonStyle}" Click="OnRemoveItemClicked" />
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                           ToolTip="Bấm đúp để đổi tên" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <Button Content="&#9650;" ToolTip="Lên" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnMoveItemUpClicked" />
+                                    <Button Content="&#9660;" ToolTip="Xuống" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnMoveItemDownClicked" />
+                                    <Button Content="&#9998;" ToolTip="Đổi tên" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnRenameItemClicked" />
+                                    <Button Content="&#10005;" ToolTip="Xoá khỏi shelf" Style="{StaticResource IconButtonStyle}" Padding="5,2" Click="OnRemoveItemClicked" />
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

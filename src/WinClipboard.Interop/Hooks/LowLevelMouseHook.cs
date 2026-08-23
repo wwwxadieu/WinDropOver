@@ -9,6 +9,9 @@ public sealed class MouseHookEventArgs : EventArgs
     public required int Y { get; init; }
     public required bool IsLeftButtonDown { get; init; }
     public required bool IsLeftButtonUp { get; init; }
+
+    /// <summary>The event's own tick count, straight from MSLLHOOKSTRUCT.time. Used by the shake detector, which needs real timing rather than when a handler happened to run.</summary>
+    public required long TimestampMs { get; init; }
 }
 
 /// <summary>
@@ -68,7 +71,8 @@ public sealed class LowLevelMouseHook : IDisposable
                 X = data.pt.X,
                 Y = data.pt.Y,
                 IsLeftButtonDown = message == NativeConstants.WM_LBUTTONDOWN,
-                IsLeftButtonUp = message == NativeConstants.WM_LBUTTONUP
+                IsLeftButtonUp = message == NativeConstants.WM_LBUTTONUP,
+                TimestampMs = data.time
             });
         }
         return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);

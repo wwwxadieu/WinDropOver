@@ -92,6 +92,47 @@ public class ShelfRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateItemAsync_PersistsRenameAndReorder()
+    {
+        var shelfId = await _repository.CreateShelfAsync(new Shelf { Name = "S", ColorHex = "#123456" });
+        var itemId = await _repository.AddItemAsync(new ShelfItem
+        {
+            ShelfId = shelfId,
+            Type = ShelfItemType.File,
+            FilePath = @"C:\old-name.txt",
+            AddedAt = DateTimeOffset.UtcNow,
+            SortOrder = 0
+        });
+
+        var item = (await _repository.GetItemsAsync(shelfId)).Single();
+        item.FilePath = @"C:\new-name.txt";
+        item.SortOrder = 5;
+        await _repository.UpdateItemAsync(item);
+
+        var reloaded = (await _repository.GetItemsAsync(shelfId)).Single();
+        Assert.Equal(itemId, reloaded.Id);
+        Assert.Equal(@"C:\new-name.txt", reloaded.FilePath);
+        Assert.Equal(5, reloaded.SortOrder);
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_ReorderChangesReturnedOrder()
+    {
+        var shelfId = await _repository.CreateShelfAsync(new Shelf { Name = "S", ColorHex = "#123456" });
+        await _repository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.Text, TextContent = "first", AddedAt = DateTimeOffset.UtcNow, SortOrder = 0 });
+        await _repository.AddItemAsync(new ShelfItem { ShelfId = shelfId, Type = ShelfItemType.Text, TextContent = "second", AddedAt = DateTimeOffset.UtcNow, SortOrder = 1 });
+
+        var items = await _repository.GetItemsAsync(shelfId);
+        (items[0].SortOrder, items[1].SortOrder) = (1, 0);
+        await _repository.UpdateItemAsync(items[0]);
+        await _repository.UpdateItemAsync(items[1]);
+
+        var reordered = await _repository.GetItemsAsync(shelfId);
+        Assert.Equal("second", reordered[0].TextContent);
+        Assert.Equal("first", reordered[1].TextContent);
+    }
+
+    [Fact]
     public async Task RemoveItemAsync_RemovesOnlyThatItem()
     {
         var shelfId = await _repository.CreateShelfAsync(new Shelf { Name = "S", ColorHex = "#ABCDEF" });

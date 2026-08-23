@@ -24,9 +24,19 @@
         </StackPanel>
 
         <CheckBox x:Name="HotkeyTriggerCheck" Content="Bật kích hoạt bằng giữ phím trong lúc kéo" Foreground="White" Margin="0,0,0,4" />
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
             <TextBlock Text="Phím giữ:" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,8,0" />
             <ComboBox x:Name="HoldKeyCombo" Width="160" />
+        </StackPanel>
+
+        <CheckBox x:Name="ShakeTriggerCheck" Content="Bật kích hoạt bằng lắc chuột trong lúc kéo" Foreground="White" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+            <TextBlock Text="Độ nhạy (px mỗi nhịp, nhỏ = nhạy hơn):" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="ShakeDistanceBox" Width="50" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <TextBlock Text="Số lần đổi chiều cần thiết:" Foreground="#B3FFFFFF" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBox x:Name="ShakeChangesBox" Width="50" />
         </StackPanel>
 
         <TextBlock Text="Bubble" FontWeight="Bold" Foreground="White" Margin="0,0,0,8" />

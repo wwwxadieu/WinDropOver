@@ -11,6 +11,11 @@ public sealed class AppSettings
     public bool HotkeyTriggerEnabled { get; set; } = true;
     public ModifierHoldKey HoldKey { get; set; } = ModifierHoldKey.RightShift;
 
+    /// <summary>Shake-to-open — Dropover's signature gesture.</summary>
+    public bool ShakeTriggerEnabled { get; set; } = true;
+    public int ShakeSegmentDistancePx { get; set; } = 18;
+    public int ShakeDirectionChanges { get; set; } = 3;
+
     // --- Bubble behavior ---
     public bool AutoHideBubbleWhenIdle { get; set; } = true;
     public int AutoHideIdleSeconds { get; set; } = 20;

@@ -8,6 +8,7 @@ public sealed class TrayIconService : IDisposable
 {
     private readonly NotifyIcon _notifyIcon;
 
+    public event EventHandler? OpenShelfRequested;
     public event EventHandler? OpenHistoryRequested;
     public event EventHandler? OpenSettingsRequested;
     public event EventHandler? ExitRequested;
@@ -15,6 +16,10 @@ public sealed class TrayIconService : IDisposable
     public TrayIconService()
     {
         var menu = new ContextMenuStrip();
+        // Dropover can raise its shelf from the menu bar as well as by gesture/shortcut; without
+        // this the shelf was only reachable mid-drag, so there was no way to look at what it held.
+        var openShelfItem = new ToolStripMenuItem("Mở shelf");
+        openShelfItem.Click += (_, _) => OpenShelfRequested?.Invoke(this, EventArgs.Empty);
         var openHistoryItem = new ToolStripMenuItem("Mở lịch sử clipboard\tCtrl+Shift+V");
         openHistoryItem.Click += (_, _) => OpenHistoryRequested?.Invoke(this, EventArgs.Empty);
         var settingsItem = new ToolStripMenuItem("Cài đặt...");
@@ -22,7 +27,9 @@ public sealed class TrayIconService : IDisposable
         var exitItem = new ToolStripMenuItem("Thoát");
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
+        menu.Items.Add(openShelfItem);
         menu.Items.Add(openHistoryItem);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(settingsItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(exitItem);

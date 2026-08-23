@@ -38,17 +38,23 @@ không rơi/lỗi dữ liệu.
       `ARCHITECTURE.md` để biết lý do đây là lựa chọn tương đương, ít rủi ro hơn).
 - [x] Bubble (`BubbleWindow`) + panel (`ShelfPanelWindow`) với 1 shelf mặc định
       (`ShelfSessionManager.EnsureDefaultShelfAsync`).
-- [x] Mở bằng giữ phím tắt trong lúc kéo (`EdgeAndHotkeyDragTrigger`, `HotkeyTriggerEnabled`).
+- [x] Mở bằng giữ phím tắt trong lúc kéo (`ShelfDragTrigger`, `HotkeyTriggerEnabled`).
 - [x] Kéo tệp ra khỏi shelf (`ShelfPanelWindow` — `DragDrop.DoDragDrop` khi kéo item, hiện hỗ
       trợ **từng item một**, chưa hỗ trợ kéo cả nhóm cùng lúc).
 - [ ] Chưa chạy thử để xác nhận "không rơi/lỗi dữ liệu" trên Windows thật.
 
-## Giai đoạn 3 — Edge-Drag Trigger
+## Giai đoạn 3 — Edge-Drag Trigger (+ cử chỉ lắc, bổ sung sau)
 
 **Tiêu chí gốc:** Phát hiện rìa đáng tin cậy trên Explorer và ít nhất 2 ứng dụng khác, có thể
 tắt nếu gây phiền.
 
-- [x] Cơ chế kéo tệp ra rìa màn hình (`EdgeAndHotkeyDragTrigger` + `Core/Services/EdgeDetector`).
+> **Đính chính:** kế hoạch v2.0 loại bỏ cử chỉ lắc vì cho rằng nó "không có tiền lệ", trong khi
+> đó chính là cách kích hoạt đặc trưng của Dropover — xem mục đính chính trong `ARCHITECTURE.md`.
+> Cử chỉ lắc đã được bổ sung; cả ba cách kích hoạt cùng tồn tại và bật/tắt độc lập.
+
+- [x] Cơ chế kéo tệp ra rìa màn hình (`ShelfDragTrigger` + `Core/Services/EdgeDetector`).
+- [x] **Cử chỉ lắc chuột** (`Core/Services/ShakeDetector` — 7 unit test, gồm chống nhiễu rung tay,
+      chống tích luỹ đảo chiều rải rác ngoài cửa sổ thời gian, và một lần lắc chỉ kích hoạt một lần).
 - [x] Toán học phát hiện rìa được test đầy đủ trên Linux (`EdgeDetectorTests.cs` — 6 test, bao
       gồm trường hợp góc màn hình, rìa bị tắt, margin = 0).
 - [x] Có thể tắt qua Settings (`EdgeTriggerEnabled` trong `AppSettings` + UI trong
@@ -71,6 +77,16 @@ lỗi theo từng item.
 - [x] Quick Actions: chuyển vào thư mục, nén ZIP, sao chép, sao chép vào Clipboard
       (`QuickActionsEngine` — có 6 unit test chạy qua trên Linux, bao gồm test cô lập lỗi
       từng item: `BatchAction_OneItemFails_OthersStillSucceed`).
+- [x] **Instant Actions** (bổ sung theo Dropover) — kéo nội dung lên bubble khi shelf đang rỗng
+      thì bung ra dải action, thả thẳng vào một action để gom-và-chạy trong một thao tác
+      (`BubbleWindow.RunInstantActionAsync`). Dùng `Shelf.DefaultTargetPath` nếu shelf đã đặt sẵn,
+      chưa đặt thì hỏi thư mục.
+- [x] **Nhận URL và text** (bổ sung theo Dropover) — `ShelfDropReader` đọc cả `FileDrop`,
+      `UniformResourceLocatorW/…` và text; trước đây chỉ đọc `FileDrop` nên link/text bị bỏ im
+      lặng dù model đã có `ShelfItemType.Text`/`.Link`.
+- [x] **Sắp xếp lại và đổi tên item** (bổ sung theo Dropover) — nút lên/xuống và đổi tên trong
+      panel; đổi tên item dạng File thì đổi tên **thật trên đĩa** (`File.Move`), vì đổi mỗi nhãn
+      hiển thị sẽ không sống sót khi kéo tệp ra.
 - [ ] Quick Action "Mở bằng..." và "Chia sẻ" có trong model (`QuickActionType.OpenWith`,
       `.Share`) và có implementation (`ShellLauncherImpl`), nhưng **không xuất hiện trên thanh
       Quick Actions của `ShelfPanelWindow`** — panel hiện chỉ có 4 nút (Chuyển/Sao chép/Zip/

@@ -128,6 +128,28 @@ public sealed class ShelfRepository : IShelfRepository
         return (long)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
+    public async Task UpdateItemAsync(ShelfItem item, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.OpenConnection();
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            UPDATE ShelfItem
+            SET Type = @type,
+                FilePath = @filePath,
+                TextContent = @textContent,
+                ThumbnailPath = @thumbnailPath,
+                SortOrder = @sortOrder
+            WHERE Id = @id
+            """;
+        cmd.Parameters.AddWithValue("@type", (int)item.Type);
+        cmd.Parameters.AddWithValue("@filePath", (object?)item.FilePath ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@textContent", (object?)item.TextContent ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@thumbnailPath", (object?)item.ThumbnailPath ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@sortOrder", item.SortOrder);
+        cmd.Parameters.AddWithValue("@id", item.Id);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     public async Task RemoveItemAsync(long itemId, CancellationToken ct = default)
     {
         using var connection = _connectionFactory.OpenConnection();

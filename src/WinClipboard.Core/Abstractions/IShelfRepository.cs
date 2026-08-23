@@ -18,6 +18,9 @@ public interface IShelfRepository
 
     Task<long> AddItemAsync(ShelfItem item, CancellationToken ct = default);
 
+    /// <summary>Persists changes to an existing item — its path after a rename, or its position after a reorder.</summary>
+    Task UpdateItemAsync(ShelfItem item, CancellationToken ct = default);
+
     Task RemoveItemAsync(long itemId, CancellationToken ct = default);
 
     Task ClearItemsAsync(long shelfId, CancellationToken ct = default);
