@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Threading;
 using WinClipboard.App.ViewModels;
 using WinClipboard.Core.Models;
 using WinClipboard.Interop;
@@ -10,7 +12,9 @@ namespace WinClipboard.App.Views;
 public partial class HistoryOverlayWindow : Window
 {
     private readonly App _app;
+    private readonly DispatcherTimer _strandedCheckTimer;
     private IntPtr _restoreFocusHandle;
+    private DateTimeOffset _shownAt;
     private ContentType? _activeFilter;
 
     /// <summary>
@@ -26,6 +30,8 @@ public partial class HistoryOverlayWindow : Window
     {
         _app = app;
         InitializeComponent();
+        _strandedCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _strandedCheckTimer.Tick += OnStrandedCheck;
         _initialized = true;
     }
 
@@ -44,13 +50,67 @@ public partial class HistoryOverlayWindow : Window
         await ReloadAsync();
 
         Show();
-        Activate();
+
+        // Not Activate(). This runs from a global hotkey while another application is in the
+        // foreground, and WPF's Activate() is a plain SetForegroundWindow, which Windows declines
+        // for a background process — quietly. The overlay would appear, never become active, and
+        // therefore never raise Deactivated, which is the only thing that closes it.
+        ForegroundWindowInfo.ForceForeground(new WindowInteropHelper(this).Handle);
         SearchBox.Focus();
+
+        _shownAt = DateTimeOffset.UtcNow;
+        _strandedCheckTimer.Start();
     }
 
     public void HideOverlay() => Hide();
 
     private void OnDeactivated(object? sender, EventArgs e) => Hide();
+
+    /// <summary>Stops the watchdog whichever way the window went away — Deactivated, Escape, a click, or the hotkey.</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        _strandedCheckTimer.Stop();
+        base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// The backstop for a window that is topmost, absent from the taskbar and Alt+Tab, and closes
+    /// only on Deactivated: if it somehow never took the foreground, nothing would ever deactivate
+    /// it and it would sit over the user's work with no way to dismiss it. That is not a state to
+    /// leave reachable, however unlikely the path to it — so once a second, a window that is
+    /// neither in front nor under the pointer puts itself away.
+    ///
+    /// The grace period covers the moment right after Show(), before the foreground change has
+    /// been processed.
+    /// </summary>
+    private void OnStrandedCheck(object? sender, EventArgs e)
+    {
+        if (!IsVisible)
+        {
+            _strandedCheckTimer.Stop();
+            return;
+        }
+
+        if (DateTimeOffset.UtcNow - _shownAt < TimeSpan.FromSeconds(1.5))
+        {
+            return;
+        }
+
+        if (!ForegroundWindowInfo.IsForeground(new WindowInteropHelper(this).Handle) && !IsMouseOver)
+        {
+            Hide();
+        }
+    }
+
+    /// <summary>Escape closes it. Obvious for a transient panel, and a second way out that does not depend on focus behaving.</summary>
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Hide();
+        }
+    }
 
     private void PositionNearBottomRight()
     {

@@ -219,6 +219,11 @@ public partial class App : System.Windows.Application
 
     private void ShowBubble(DragTriggerEventArgs trigger)
     {
+        // One floating panel at a time. The clipboard history and the shelf are both topmost
+        // overlays; leaving the history up while the shelf opens on top of it gives the user two
+        // windows hovering over their work when they asked for one.
+        _historyWindow?.HideOverlay();
+
         _bubbleWindow ??= new BubbleWindow(this);
         // The trigger knows where the drag was when it fired, and that is where the shelf belongs.
         // This used to pass only the edge and throw the coordinates away, which parked the shelf
