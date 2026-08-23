@@ -90,3 +90,12 @@ internal struct INPUT
     [FieldOffset(0)] public uint type;
     [FieldOffset(8)] public KEYBDINPUT ki;
 }
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct MONITORINFO
+{
+    public int cbSize;
+    public RECT rcMonitor;
+    public RECT rcWork;
+    public uint dwFlags;
+}

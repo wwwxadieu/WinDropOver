@@ -61,39 +61,46 @@ public partial class BubbleWindow : Window
     }
 
     /// <summary>
+    /// Shows the shelf centred on a screen point, in the physical pixels the mouse hook reports.
+    ///
+    /// Centred on the cursor, not parked at a screen edge, because the gesture that summons this
+    /// happens mid-drag: the user is already holding files somewhere in the middle of the screen.
+    /// A shelf that appears at the edge means dragging all the way over to it before letting go,
+    /// which is most of the work the shelf exists to save — and looks exactly like drag-and-drop
+    /// being broken when you release where you are and nothing happens. Under the cursor, letting
+    /// go without moving at all is a drop.
+    ///
+    /// Always shows, even with nothing on the shelf. It used to hide itself when the shelf was
+    /// empty, which defeated the entire gesture: you shake while dragging a file precisely
+    /// *because* the shelf is empty and you want to start filling it, so the one moment the shelf
+    /// was most needed was the one moment it refused to appear. Auto-hide still exists, but it
+    /// belongs to the idle timer below — hiding something the user just asked for is not
+    /// auto-hide, it is not showing up.
+    ///
     /// Task-returning (not async void) so failures surface to the caller instead of crashing the
-    /// process. <paramref name="forceVisible"/> is for opening from the tray, where the user asked
-    /// to see the shelf and an empty one should still appear.
+    /// process.
     /// </summary>
-    public async Task ShowAtEdgeAsync(ScreenEdge edge, bool forceVisible = false)
+    public async Task ShowAtPointAsync(int screenX, int screenY)
     {
-        _currentEdge = edge;
-        PositionAtEdge(edge);
+        // Realise the handle without showing the window, so it can be positioned before it is
+        // ever painted: showing first and moving after is a visible jump across the screen.
+        var hwnd = new WindowInteropHelper(this).EnsureHandle();
+        WindowPlacement.CentreOnScreenPoint(hwnd, screenX, screenY);
 
-        var itemCount = await RefreshCountAsync();
-        if (itemCount == 0 && !forceVisible && _app.Settings.AutoHideBubbleWhenIdle)
-        {
-            Hide();
-            return;
-        }
+        await RefreshCountAsync();
 
         Show();
+        // Position again after Show(): WPF applies its own placement as part of showing, which
+        // would otherwise undo the one above.
+        WindowPlacement.CentreOnScreenPoint(hwnd, screenX, screenY);
         RestartAutoHideTimer();
     }
 
-    private void PositionAtEdge(ScreenEdge edge)
+    /// <summary>Shows the shelf wherever the pointer currently is — for the tray entry, which has no drag to take a position from.</summary>
+    public Task ShowAtCursorAsync()
     {
-        var workArea = SystemParameters.WorkArea;
-        const double margin = 4;
-
-        (Left, Top) = edge switch
-        {
-            ScreenEdge.Left => (workArea.Left + margin, workArea.Top + (workArea.Height - Height) / 2),
-            ScreenEdge.Right => (workArea.Right - Width - margin, workArea.Top + (workArea.Height - Height) / 2),
-            ScreenEdge.Top => (workArea.Left + (workArea.Width - Width) / 2, workArea.Top + margin),
-            ScreenEdge.Bottom => (workArea.Left + (workArea.Width - Width) / 2, workArea.Bottom - Height - margin),
-            _ => (workArea.Right - Width - margin, workArea.Top + (workArea.Height - Height) / 2)
-        };
+        var (x, y) = WindowPlacement.GetCursorPosition();
+        return ShowAtPointAsync(x, y);
     }
 
     /// <summary>Updates the badge and returns the item count. Deciding whether to hide is the caller's, so this cannot fight with a Show() that follows it.</summary>
@@ -133,11 +140,16 @@ public partial class BubbleWindow : Window
         BubbleBorder.Opacity = 1.0;
         BubbleBorder.RenderTransform = new ScaleTransform(1.12, 1.12, 36, 36);
 
+        // Ask the data object what it holds *before* yielding. It belongs to the OLE drag loop,
+        // which ends the moment this handler awaits, so anything read afterwards is read from a
+        // payload that may already have been released.
+        var canRead = ShelfDropReader.CanRead(e.Data);
+
         // Instant Actions only make sense on an empty shelf: once it holds something, a drop
         // means "add to the pile", and running an action would act on the pile too.
         var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
         var isEmpty = (await _app.ShelfSession.GetItemsAsync(shelfId)).Count == 0;
-        if (isEmpty && ShelfDropReader.CanRead(e.Data))
+        if (isEmpty && canRead)
         {
             ShowInstantActions();
         }
@@ -191,7 +203,8 @@ public partial class BubbleWindow : Window
         InstantActionsPanel.Visibility = Visibility.Collapsed;
         _instantActionsVisible = false;
         Height = CollapsedHeight;
-        PositionAtEdge(_currentEdge);
+        // Collapsing shrinks the window upward from its top-left, which is where it already is,
+        // so there is nothing to reposition — the shelf stays put under the cursor that summoned it.
     }
 
     private Border BuildActionTile(QuickActionType action, string label)
@@ -297,12 +310,24 @@ public partial class BubbleWindow : Window
         // handled there and marked Handled so it never gets here.
         HideInstantActions();
 
-        var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
-        var existing = await _app.ShelfSession.GetItemsAsync(shelfId);
-        var items = ShelfDropReader.Read(e.Data, shelfId, firstSortOrder: existing.Count);
-
-        foreach (var item in items)
+        // Read the payload before the first await, for the reason given in OnDragEnter: the drag
+        // loop owns it and lets go as soon as this handler yields. Reading it afterwards is how a
+        // drop that visibly succeeded ends up adding nothing at all.
+        var dropped = ShelfDropReader.Read(e.Data, shelfId: 0, firstSortOrder: 0);
+        if (dropped.Count == 0)
         {
+            return;
+        }
+
+        var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
+        var firstSortOrder = (await _app.ShelfSession.GetItemsAsync(shelfId)).Count;
+
+        foreach (var item in dropped)
+        {
+            // The real shelf and ordering are only knowable after the awaits above, so they are
+            // stamped on here rather than at parse time.
+            item.ShelfId = shelfId;
+            item.SortOrder += firstSortOrder;
             await _app.ShelfSession.AddItemAsync(item);
         }
 

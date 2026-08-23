@@ -173,7 +173,7 @@ internal static class ScreenshotCapture
         await StepAsync("bubble", "02-bubble.png", async () =>
         {
             var window = new BubbleWindow(app);
-            await window.ShowAtEdgeAsync(ScreenEdge.Right);
+            await window.ShowAtPointAsync(600, 400);
             bubble = window;
             return window;
         });
