@@ -101,11 +101,21 @@ internal struct MONITORINFO
 }
 
 /// <summary>
-/// BITMAPINFO with the colour table omitted: GetDIBits only writes one for bit depths of 8 or
-/// less, and every call here asks for 32-bit BI_RGB, where the table is unused.
+/// BITMAPINFO: the header followed by room for a colour table.
+///
+/// The table is carried even though these calls ask for 32-bit BI_RGB, where documentation says
+/// it goes unwritten. GDI receives a bare pointer and decides for itself how far past the header
+/// to write — for 32bpp it may lay down channel masks — and this struct is a managed object, so
+/// a single byte written past its end corrupts the managed heap. The damage does not surface at
+/// the call; it surfaces later, at whatever unrelated allocation lands on the wreckage, as a
+/// process that vanishes without an exception to catch or a stack to log.
+///
+/// A kilobyte of slack on a stack-allocated struct is not worth reasoning about; being wrong
+/// about how much GDI writes is. Note that biSize must still be the size of the *header* alone,
+/// hence BITMAPINFOHEADER_SIZE rather than Marshal.SizeOf on this type.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-internal struct BITMAPINFO
+internal unsafe struct BITMAPINFO
 {
     public uint biSize;
     public int biWidth;
@@ -119,4 +129,6 @@ internal struct BITMAPINFO
     public int biYPelsPerMeter;
     public uint biClrUsed;
     public uint biClrImportant;
+    /// <summary>The 256-entry colour table a BITMAPINFO is allowed to carry. Never read here; it exists so GDI cannot write outside the struct.</summary>
+    public fixed uint bmiColors[256];
 }

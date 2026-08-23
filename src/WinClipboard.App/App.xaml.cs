@@ -57,10 +57,28 @@ public partial class App : System.Windows.Application
         // and guessing.
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             CrashLog.Write("AppDomain.UnhandledException", args.ExceptionObject as Exception);
+
+        // Logged AND swallowed. Until now this only logged, which left the default behaviour
+        // intact: WPF tears the process down after an unhandled exception on the UI thread. For
+        // an app that lives in the tray all day and is driven by drag gestures, that means one
+        // bad file — an image the decoder chokes on, a path the shell reports oddly — takes the
+        // whole app with it and loses the shelf. Nothing here holds unmanaged state that a failed
+        // handler could corrupt: the database work is transactional, and the shelf is rebuilt
+        // from it on the next reload. Continuing costs a failed action; dying costs the session.
         DispatcherUnhandledException += (_, args) =>
+        {
             CrashLog.Write("Dispatcher.UnhandledException", args.Exception);
+            ReportRecoveredFailure(args.Exception);
+            args.Handled = true;
+        };
+
+        // Same reasoning: an exception in a task nobody awaited used to be able to reach the
+        // finalizer thread and kill the process.
         TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
             CrashLog.Write("TaskScheduler.UnobservedTaskException", args.Exception);
+            args.SetObserved();
+        };
 
         _singleInstanceMutex = new Mutex(initiallyOwned: true, "WinClipboard.SingleInstance", out var createdNew);
         if (!createdNew)
@@ -231,6 +249,28 @@ public partial class App : System.Windows.Application
     /// Awaits a fire-and-forget task and surfaces a failure instead of letting it vanish into an
     /// unobserved Task. Screenshot mode routes this to its log; a normal run shows a message box.
     /// </summary>
+    private DateTimeOffset _lastFailureNotice = DateTimeOffset.MinValue;
+
+    /// <summary>
+    /// Tells the user an action failed, at most once a minute. Rate limited because the failures
+    /// worth surfacing tend to repeat — the same file dropped again, a reload that throws on every
+    /// tick — and a tray balloon per occurrence would be worse than the silence it replaces.
+    /// </summary>
+    private void ReportRecoveredFailure(Exception exception)
+    {
+        ScreenshotCapture.ReportBackgroundFailure(exception);
+
+        var now = DateTimeOffset.UtcNow;
+        if (_tray is null || now - _lastFailureNotice < TimeSpan.FromMinutes(1))
+        {
+            return;
+        }
+        _lastFailureNotice = now;
+        _tray.ShowWarning(
+            "WinClipboard gặp lỗi",
+            $"Một thao tác vừa thất bại nhưng ứng dụng vẫn chạy. Chi tiết đã ghi vào:\n{CrashLog.Path}");
+    }
+
     internal static async Task ReportIfFaultedAsync(Task task)
     {
         try
@@ -239,6 +279,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
+            CrashLog.Write("Background task", ex);
             ScreenshotCapture.ReportBackgroundFailure(ex);
         }
     }
