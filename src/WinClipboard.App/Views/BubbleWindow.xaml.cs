@@ -358,71 +358,160 @@ public partial class BubbleWindow : Window
     /// <summary>More than this and the extra sheets would be hidden behind the fan anyway; the pill carries the real count.</summary>
     private const int MaxStackSheets = 4;
 
+    /// <summary>
+    /// One sheet's visuals plus the transforms that move it, kept for the life of the window.
+    ///
+    /// Kept rather than rebuilt because animating means the transform has to be the same object
+    /// from one layout to the next: hand a slot a fresh TransformGroup each time and there is
+    /// nothing for an animation to move *from*, which is exactly how the fan used to snap into
+    /// its new shape between one frame and the next.
+    /// </summary>
+    private sealed class StackSheet
+    {
+        public required Border Card { get; init; }
+        public required Image Icon { get; init; }
+        public required Image Thumb { get; init; }
+        public required ScaleTransform Scale { get; init; }
+        public required RotateTransform Rotate { get; init; }
+        public required TranslateTransform Translate { get; init; }
+
+        /// <summary>Whether this sheet was on screen before the current rebuild — the difference between reshaping the fan and a sheet arriving.</summary>
+        public bool WasVisible { get; set; }
+    }
+
+    private StackSheet[]? _stackSheets;
+
+    private StackSheet[] StackSheets => _stackSheets ??=
+    [
+        CreateSheet(StackCard0, StackIcon0, StackThumb0),
+        CreateSheet(StackCard1, StackIcon1, StackThumb1),
+        CreateSheet(StackCard2, StackIcon2, StackThumb2),
+        CreateSheet(StackCard3, StackIcon3, StackThumb3)
+    ];
+
+    private static StackSheet CreateSheet(Border card, Image icon, Image thumb)
+    {
+        // Scale first so the arrival pop grows the sheet about its own middle rather than about
+        // wherever the rotation has since carried it.
+        var scale = new ScaleTransform(1, 1);
+        var rotate = new RotateTransform(0);
+        var translate = new TranslateTransform(0, 0);
+        card.RenderTransform = new TransformGroup { Children = { scale, rotate, translate } };
+        return new StackSheet
+        {
+            Card = card, Icon = icon, Thumb = thumb,
+            Scale = scale, Rotate = rotate, Translate = translate
+        };
+    }
+
+    private static readonly Duration SettleDuration = new(TimeSpan.FromMilliseconds(220));
+    private static readonly Duration ArriveDuration = new(TimeSpan.FromMilliseconds(260));
+
     private void BuildStack(List<ShelfItemView> views)
     {
-        ClearStack();
-
         var shown = Math.Min(views.Count, MaxStackSheets);
-        if (shown == 0)
-        {
-            return;
-        }
 
-        var layout = FanLayouts[shown];
-        for (var slot = 0; slot < shown; slot++)
+        for (var slot = 0; slot < MaxStackSheets; slot++)
         {
-            var (card, icon, thumb) = StackSlot(slot);
+            var sheet = StackSheets[slot];
+            if (slot >= shown)
+            {
+                HideSheet(sheet);
+                continue;
+            }
+
             // Back to front: the newest arrival ends up on top, which is what the eye goes to and
             // what the user just dropped.
             var view = views[views.Count - shown + slot];
+            var (angle, offsetX) = FanLayouts[shown][slot];
 
-            card.RenderTransform = new TransformGroup
-            {
-                Children =
-                {
-                    new RotateTransform(layout[slot].Angle),
-                    new TranslateTransform(layout[slot].OffsetX, 0)
-                }
-            };
-            card.Visibility = Visibility.Visible;
-            card.ToolTip = view.ToolTipText;
+            sheet.Card.ToolTip = view.ToolTipText;
+            sheet.Thumb.Source = view.Thumbnail;
+            sheet.Thumb.Visibility = view.Thumbnail is not null ? Visibility.Visible : Visibility.Collapsed;
+            sheet.Icon.Source = view.Thumbnail is null ? view.Icon : null;
+            sheet.Icon.Visibility = view.Thumbnail is null && view.Icon is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            sheet.Card.Visibility = Visibility.Visible;
 
-            if (view.Thumbnail is not null)
+            if (sheet.WasVisible)
             {
-                thumb.Source = view.Thumbnail;
-                thumb.Visibility = Visibility.Visible;
+                // Already on the pile: slide and turn to make room for what just landed, rather
+                // than being somewhere else on the next frame.
+                Settle(sheet.Rotate, RotateTransform.AngleProperty, angle);
+                Settle(sheet.Translate, TranslateTransform.XProperty, offsetX);
             }
-            else if (view.Icon is not null)
+            else
             {
-                icon.Source = view.Icon;
-                icon.Visibility = Visibility.Visible;
+                Arrive(sheet, angle, offsetX);
             }
+
+            sheet.WasVisible = true;
         }
+    }
+
+    /// <summary>Moves one transform value to its new place, or assigns it outright when it is already there — a reload that changed nothing should not start eight animations.</summary>
+    private static void Settle(Animatable transform, DependencyProperty property, double target)
+    {
+        if (Math.Abs((double)transform.GetValue(property) - target) < 0.01)
+        {
+            return;
+        }
+        transform.BeginAnimation(property, new DoubleAnimation(target, SettleDuration)
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        });
+    }
+
+    /// <summary>
+    /// A sheet joining the pile: it comes in small and turned further than it will end up, then
+    /// settles. This is the whole reason the stack is worth drawing — the shelf's job is to tell
+    /// you a file landed, and a sheet that was simply already there on the next frame does not.
+    /// </summary>
+    private static void Arrive(StackSheet sheet, double angle, double offsetX)
+    {
+        // Starting position assigned rather than animated, so there is nothing to move from.
+        sheet.Rotate.BeginAnimation(RotateTransform.AngleProperty, null);
+        sheet.Translate.BeginAnimation(TranslateTransform.XProperty, null);
+        sheet.Rotate.Angle = angle;
+        sheet.Translate.X = offsetX;
+
+        var pop = new DoubleAnimation(0.55, 1, ArriveDuration)
+        {
+            EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 }
+        };
+        sheet.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+        sheet.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+        sheet.Card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(150))));
+    }
+
+    private static void HideSheet(StackSheet sheet)
+    {
+        sheet.Card.BeginAnimation(OpacityProperty, null);
+        sheet.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        sheet.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        sheet.Card.Opacity = 1;
+        sheet.Scale.ScaleX = 1;
+        sheet.Scale.ScaleY = 1;
+
+        sheet.Card.Visibility = Visibility.Collapsed;
+        sheet.Card.ToolTip = null;
+        // Dropped rather than merely hidden, so a shelf that has been emptied is not still
+        // holding every decoded preview it used to show.
+        sheet.Icon.Source = null;
+        sheet.Icon.Visibility = Visibility.Collapsed;
+        sheet.Thumb.Source = null;
+        sheet.Thumb.Visibility = Visibility.Collapsed;
+        sheet.WasVisible = false;
     }
 
     private void ClearStack()
     {
-        for (var slot = 0; slot < MaxStackSheets; slot++)
+        foreach (var sheet in StackSheets)
         {
-            var (card, icon, thumb) = StackSlot(slot);
-            card.Visibility = Visibility.Collapsed;
-            card.ToolTip = null;
-            // Dropped rather than merely hidden, so a shelf that has been emptied is not still
-            // holding every decoded preview it used to show.
-            icon.Source = null;
-            icon.Visibility = Visibility.Collapsed;
-            thumb.Source = null;
-            thumb.Visibility = Visibility.Collapsed;
+            HideSheet(sheet);
         }
     }
-
-    private (Border Card, Image Icon, Image Thumb) StackSlot(int slot) => slot switch
-    {
-        0 => (StackCard0, StackIcon0, StackThumb0),
-        1 => (StackCard1, StackIcon1, StackThumb1),
-        2 => (StackCard2, StackIcon2, StackThumb2),
-        _ => (StackCard3, StackIcon3, StackThumb3)
-    };
 
     private void OnStackPreviewMouseDown(object sender, MouseButtonEventArgs e) => _dragStartPoint = e.GetPosition(null);
 
