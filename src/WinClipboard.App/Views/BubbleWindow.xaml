@@ -116,6 +116,15 @@
                                             ClipToBounds="True" Visibility="{Binding ThumbnailVisibility}">
                                         <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                                     </Border>
+                                    <!--
+                                        The file's own icon, straight from the shell — the same one it had in
+                                        the folder it was dragged out of. Square footprint as the thumbnail
+                                        above so rows line up whichever of the two a given item gets.
+                                    -->
+                                    <Image Grid.Column="0" Width="26" Height="26" Margin="0,0,8,0"
+                                           Source="{Binding Icon}" Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           Visibility="{Binding IconVisibility}" />
                                     <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="15" Margin="0,0,8,0"
                                                VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
                                     <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12"
@@ -146,10 +155,14 @@
                                         <Grid>
                                             <TextBlock Text="{Binding Glyph}" FontSize="26" HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" Visibility="{Binding GlyphVisibility}" />
+                                            <Image Width="40" Height="40" Source="{Binding Icon}" Stretch="Uniform"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   Visibility="{Binding IconVisibility}" />
                                             <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
                                                    Visibility="{Binding ThumbnailVisibility}" />
                                         </Grid>
-        </Border>
+                                    </Border>
                                 <TextBlock Text="{Binding DisplayName}" FontSize="10" Margin="0,4,0,0"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            TextTrimming="CharacterEllipsis" TextAlignment="Center" />

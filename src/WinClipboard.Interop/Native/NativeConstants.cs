@@ -81,4 +81,11 @@ internal static class NativeConstants
     /// <summary>sizeof(BITMAPINFOHEADER). Fixed by the API, and not the size of our BITMAPINFO struct, which also carries the colour table.</summary>
     public const uint BITMAPINFOHEADER_SIZE = 40;
     public const uint BI_RGB = 0;
+
+    // SHGetFileInfo
+    public const uint SHGFI_ICON = 0x000000100;
+    public const uint SHGFI_LARGEICON = 0x000000000;
+    public const uint SHGFI_SMALLICON = 0x000000001;
+    public const uint SHGFI_USEFILEATTRIBUTES = 0x000000010;
+    public const uint FILE_ATTRIBUTE_NORMAL = 0x00000080;
 }
