@@ -81,7 +81,10 @@ jobs:
           Write-Host "Tag $t -> MSI version $msiVersion"
 
       - name: Install WiX
-        run: dotnet tool install --global wix --version 5.*
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.*
+          # The UI extension supplies the WixUI_InstallDir dialog set the installer references.
           wix extension add --global WixToolset.UI.wixext/5.*
 
       - name: Build MSI installer
