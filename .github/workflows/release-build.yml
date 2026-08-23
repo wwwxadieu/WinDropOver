@@ -4,8 +4,10 @@ name: Release Build
 # matching GitHub Release: a portable .zip (unpack and run) and a per-user .msi installer
 # (Start Menu entry and a proper uninstall entry, no admin rights needed).
 #
-# Runs automatically when a v* tag is pushed, or manually via workflow_dispatch to attach a
-# build to a release that already exists.
+# Runs automatically when a v* tag is pushed, or manually via workflow_dispatch. The manual
+# path works whether or not the tag exists yet: an existing tag is built from as-is, a new one
+# is created from the ref the workflow was dispatched on, together with its release. That
+# matters because pushing a tag is not always available to whoever is cutting the release.
 on:
   push:
     tags:
@@ -13,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing release tag to attach the build to (e.g. v0.1.0-alpha)'
+        description: 'Release tag (e.g. v0.1.2-alpha). Created from the selected branch if it does not exist yet.'
         required: true
 
 permissions:
@@ -23,9 +25,23 @@ jobs:
   publish:
     runs-on: windows-latest
     steps:
+      # No `ref:` here — inputs.tag may name a tag that does not exist yet, which would fail
+      # the checkout outright. Take the dispatched ref (or the pushed tag) and switch to the
+      # release tag below only once we know it exists. fetch-depth 0 brings the tags along.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Build from the release tag if it already exists
+        shell: pwsh
+        run: |
+          $t = "${{ inputs.tag }}"
+          if ($t -and (git tag -l $t)) {
+            Write-Host "Tag $t already exists - building from it."
+            git checkout --quiet $t
+          } else {
+            Write-Host "Building from $(git rev-parse --abbrev-ref HEAD) at $(git rev-parse --short HEAD)."
+          }
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -85,6 +101,56 @@ jobs:
           if ($msi.Length -lt 10MB) {
             throw "MSI is only $($msi.Length) bytes - the publish output was not harvested into it"
           }
+
+      # `gh release upload` fails outright if the release does not exist, so a tag push alone
+      # never actually produced a release. Create it here when missing; this also creates the
+      # tag itself when the run was dispatched with a new one.
+      - name: Create the release if it does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          # GitHub runs pwsh with $ErrorActionPreference='stop', and PowerShell 7.4+ applies
+          # that to native commands too - so `gh release view` on a release that does not
+          # exist would throw instead of letting us branch on it. Check exit codes by hand.
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+
+          $t = "${{ steps.tag.outputs.tag }}"
+          gh release view $t 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $t already exists - attaching to it."
+            exit 0
+          }
+
+          $title = $t
+          $notesFile = "docs/release-notes/$t.md"
+          $arguments = @('release', 'create', $t, '--target', (git rev-parse HEAD))
+
+          if (Test-Path $notesFile) {
+            # An "# ..." first line is the release title; the rest is the body. Keeping the
+            # notes in the repo means they get reviewed with the change, not written at the
+            # moment of release from memory.
+            $lines = Get-Content $notesFile
+            if ($lines[0] -match '^#\s+(.*)') {
+              $title = $Matches[1]
+              $body = ($lines | Select-Object -Skip 1) -join "`n"
+              $bodyFile = Join-Path $env:RUNNER_TEMP 'release-body.md'
+              $body.Trim() | Set-Content -Path $bodyFile -Encoding utf8
+              $arguments += @('--notes-file', $bodyFile)
+            } else {
+              $arguments += @('--notes-file', $notesFile)
+            }
+          } else {
+            $arguments += '--generate-notes'
+          }
+
+          $arguments += @('--title', $title)
+          # A tag carrying a suffix (v0.1.2-alpha, -rc1, -beta) is not a stable release.
+          if ($t -match '-') { $arguments += '--prerelease' }
+
+          gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw "Could not create release $t" }
 
       - name: Upload to release
         env:
