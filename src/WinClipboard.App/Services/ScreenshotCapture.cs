@@ -201,17 +201,6 @@ internal static class ScreenshotCapture
             return bubble;
         });
 
-        await StepAsync("shelf panel", "03-shelf-panel.png", async () =>
-        {
-            if (bubble is null)
-            {
-                throw new InvalidOperationException("Bubble window failed, so the panel cannot be positioned next to it.");
-            }
-            var window = app.GetOrCreatePanelWindow();
-            await window.ShowNextToAsync(bubble, ScreenEdge.Right);
-            return window;
-        });
-
         await StepAsync("settings", "04-settings.png", () =>
         {
             var window = new SettingsWindow(app);

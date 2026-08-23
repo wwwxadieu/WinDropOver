@@ -162,6 +162,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <!-- An image among documents still previews, just at row size. -->
                                     <Border Grid.Column="0" Width="30" Height="30" Margin="0,0,8,0" CornerRadius="4"
@@ -195,6 +196,16 @@
                                                    TextTrimming="CharacterEllipsis"
                                                    Visibility="{Binding DetailsVisibility}" />
                                     </StackPanel>
+                                    <!--
+                                        Taking one item off the shelf. The header's bin empties the
+                                        whole thing, which is no use when a collection of nine is
+                                        right except for one — and the detail list is where you are
+                                        already looking when you notice.
+                                    -->
+                                    <Button Grid.Column="2" Width="24" Height="24" VerticalAlignment="Center"
+                                            Tag="{StaticResource IconClose}" ToolTip="Bỏ mục này khỏi shelf"
+                                            Style="{StaticResource DangerIconButtonStyle}"
+                                            Click="OnRemoveItemClicked" />
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -283,9 +294,6 @@
                         Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
                         DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
                         DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
-                <Button Content="Mở panel" Tag="{x:Null}"
-                        ToolTip="Mở panel đầy đủ: nhiều shelf, đổi tên, sắp xếp"
-                        Style="{StaticResource QuickActionButtonStyle}" Click="OnOpenPanelClicked" />
             </UniformGrid>
 
             <!--

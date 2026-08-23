@@ -66,7 +66,7 @@ dotnet test tests/WinClipboard.Data.Tests
 | `src/WinClipboard.Core` | Model + business logic thuần (Quick Actions engine, edge detection, drag threshold, settings model) — không đụng Windows API | ✅ |
 | `src/WinClipboard.Data` | SQLite (`Microsoft.Data.Sqlite`) cho lịch sử clipboard + shelf, JSON settings store | ✅ |
 | `src/WinClipboard.Interop` | Toàn bộ P/Invoke Win32: low-level mouse/keyboard hook, hotkey, clipboard listener, layered window, DPI, giả lập Ctrl+V | ✅ (chỉ compile — hook/API thật cần chạy trên Windows) |
-| `src/WinClipboard.App` | WPF: tray icon, History overlay, Bubble, Shelf Panel, Settings | ❌ (cần Windows — CI build project này) |
+| `src/WinClipboard.App` | WPF: tray icon, shelf card, lịch sử clipboard, Cài đặt | ❌ (cần Windows — CI build project này) |
 | `tests/WinClipboard.Core.Tests`, `tests/WinClipboard.Data.Tests` | 42 xUnit test | ✅ |
 
 Cột cuối chỉ nói về việc *phát triển cục bộ trên Linux*; trên Windows (và trên CI) toàn bộ

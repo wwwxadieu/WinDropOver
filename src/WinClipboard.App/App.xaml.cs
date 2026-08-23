@@ -25,7 +25,6 @@ public partial class App : System.Windows.Application
 
     private HistoryOverlayWindow? _historyWindow;
     private BubbleWindow? _bubbleWindow;
-    private ShelfPanelWindow? _panelWindow;
     private SettingsWindow? _settingsWindow;
 
     public AppSettings Settings { get; private set; } = new();
@@ -151,8 +150,10 @@ public partial class App : System.Windows.Application
         PasteService = new PasteService(_clipboardMonitor);
 
         var clipboardWriter = new ClipboardWriterImpl(Dispatcher, _clipboardMonitor);
-        var shellLauncher = new ShellLauncherImpl(Dispatcher, () => _panelWindow is not null
-            ? new WindowInteropHelper(_panelWindow).Handle
+        // The shelf card owns any dialog a quick action needs to put up — it is the only window
+        // the user is looking at when one runs.
+        var shellLauncher = new ShellLauncherImpl(Dispatcher, () => _bubbleWindow is not null
+            ? new WindowInteropHelper(_bubbleWindow).Handle
             : IntPtr.Zero);
         QuickActions = new QuickActionsEngine(_shelfSession, clipboardWriter, shellLauncher);
     }
@@ -231,24 +232,17 @@ public partial class App : System.Windows.Application
         _ = ReportIfFaultedAsync(_bubbleWindow.ShowAtPointAsync(trigger.X, trigger.Y));
     }
 
-    /// <summary>
-    /// Opens the bubble and its panel from the tray. Unlike the drag triggers this happens with no
-    /// drag in progress, so it goes straight to the expanded panel — the point is to look at what
-    /// the shelf holds, not to catch an incoming drop.
-    /// </summary>
+    /// <summary>Opens the shelf card from the tray, with no drag in progress — for looking at what it holds rather than catching a drop.</summary>
     private void ShowShelfFromTray()
     {
         _bubbleWindow ??= new BubbleWindow(this);
         _ = ReportIfFaultedAsync(ShowShelfAsync());
     }
 
-    private async Task ShowShelfAsync()
-    {
+    private Task ShowShelfAsync() =>
         // No drag to take a position from, so use wherever the pointer is — which, having just
         // come from the tray menu, is close to where the user is looking.
-        await _bubbleWindow!.ShowAtCursorAsync();
-        await GetOrCreatePanelWindow().ShowNextToAsync(_bubbleWindow, Settings.EnabledEdges.FirstOrDefault(ScreenEdge.Right));
-    }
+        _bubbleWindow!.ShowAtCursorAsync();
 
     /// <summary>
     /// Awaits a fire-and-forget task and surfaces a failure instead of letting it vanish into an
@@ -287,21 +281,6 @@ public partial class App : System.Windows.Application
             CrashLog.Write("Background task", ex);
             ScreenshotCapture.ReportBackgroundFailure(ex);
         }
-    }
-
-    /// <summary>
-    /// Opens the full panel beside the shelf card. No longer the way to see what the shelf holds —
-    /// the card shows that itself — so this is only for what does not fit on it: several shelves,
-    /// renaming, reordering.
-    /// </summary>
-    internal void OpenShelfPanel(BubbleWindow bubble) =>
-        _ = ReportIfFaultedAsync(GetOrCreatePanelWindow()
-            .ShowNextToAsync(bubble, Settings.EnabledEdges.FirstOrDefault(ScreenEdge.Right)));
-
-    internal ShelfPanelWindow GetOrCreatePanelWindow()
-    {
-        _panelWindow ??= new ShelfPanelWindow(this);
-        return _panelWindow;
     }
 
     private void ShowSettingsWindow()
