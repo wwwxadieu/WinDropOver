@@ -30,3 +30,25 @@ jobs:
 
       - name: Test WinClipboard.Data.Tests
         run: dotnet test tests/WinClipboard.Data.Tests -c Release --no-build --verbosity normal
+
+      # Instantiates every window and renders it to a PNG. Doubles as the only check that the
+      # XAML actually *loads* — compilation alone would not catch a bad StaticResource key or a
+      # binding to a property that does not exist. A non-zero exit here fails the job.
+      - name: Capture UI screenshots
+        run: |
+          $exe = "src/WinClipboard.App/bin/Release/net8.0-windows10.0.19041.0/WinClipboard.exe"
+          if (-not (Test-Path $exe)) { throw "Built executable not found at $exe" }
+          # Start-Process -Wait: WinClipboard.exe is a GUI-subsystem binary, so `& $exe` would
+          # return immediately instead of waiting for the capture to finish.
+          $p = Start-Process -FilePath $exe -ArgumentList '--screenshots', "$PWD\screenshots" -Wait -PassThru
+          $log = "screenshots/screenshot-log.txt"
+          if (Test-Path $log) { Get-Content $log | Write-Host }
+          if ($p.ExitCode -ne 0) { throw "Screenshot capture exited with $($p.ExitCode)" }
+          Get-ChildItem screenshots -Filter *.png | ForEach-Object { Write-Host "$($_.Name) $($_.Length) bytes" }
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: screenshots/*.png
+          if-no-files-found: error

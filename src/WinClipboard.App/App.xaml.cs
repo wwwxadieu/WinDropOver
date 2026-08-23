@@ -38,6 +38,19 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        // Screenshot mode renders each window to a PNG and exits. It deliberately skips the
+        // single-instance mutex, the Win32 hooks and the tray icon so it can run unattended on
+        // a CI runner alongside (or instead of) a real instance.
+        if (ScreenshotCapture.TryParseOutputDirectory(e.Args, out var screenshotDirectory))
+        {
+            BuildDataServices(
+                databasePath: Path.Combine(screenshotDirectory, "screenshot-data", "winclipboard.db"),
+                settingsPath: Path.Combine(screenshotDirectory, "screenshot-data", "settings.json"),
+                thumbnailDirectory: Path.Combine(screenshotDirectory, "screenshot-data", "thumbnails"));
+            _ = RunScreenshotModeAsync(screenshotDirectory);
+            return;
+        }
+
         _singleInstanceMutex = new Mutex(initiallyOwned: true, "WinClipboard.SingleInstance", out var createdNew);
         if (!createdNew)
         {
@@ -46,25 +59,12 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        SettingsPersistence = new SettingsStore(WinClipboard.Data.SettingsStore.DefaultSettingsPath());
-        Settings = SettingsPersistence.Load();
-
-        var connectionFactory = new SqliteConnectionFactory(SqliteConnectionFactory.DefaultDatabasePath());
-        ClipboardRepository = new ClipboardRepository(connectionFactory);
-        var shelfRepository = new ShelfRepository(connectionFactory);
-        _shelfSession = new ShelfSessionManager(shelfRepository);
-
-        var thumbnailDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WinClipboard", "thumbnails");
-        _clipboardMonitor = new ClipboardMonitorService(ClipboardRepository, thumbnailDirectory);
-        PasteService = new PasteService(_clipboardMonitor);
-
-        var clipboardWriter = new ClipboardWriterImpl(Dispatcher, _clipboardMonitor);
-        var shellLauncher = new ShellLauncherImpl(Dispatcher, () => _panelWindow is not null
-            ? new WindowInteropHelper(_panelWindow).Handle
-            : IntPtr.Zero);
-        QuickActions = new QuickActionsEngine(_shelfSession, clipboardWriter, shellLauncher);
+        BuildDataServices(
+            databasePath: SqliteConnectionFactory.DefaultDatabasePath(),
+            settingsPath: WinClipboard.Data.SettingsStore.DefaultSettingsPath(),
+            thumbnailDirectory: Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "WinClipboard", "thumbnails"));
 
         _win32Window = new Win32MessageWindow();
         _win32Window.RegisterHotkey(HistoryHotkeyId, Settings.HistoryHotkeyModifiers, Settings.HistoryHotkeyVirtualKey);
@@ -88,6 +88,36 @@ public partial class App : System.Windows.Application
         _tray.ExitRequested += (_, _) => Dispatcher.Invoke(Shutdown);
 
         _ = _shelfSession.EnsureDefaultShelfAsync();
+    }
+
+    /// <summary>
+    /// Wires up everything that does not touch the OS: settings, SQLite, the clipboard monitor
+    /// and the Quick Actions engine. Shared by normal startup and screenshot mode, which differ
+    /// only in where the data lives and in whether hooks/tray are started afterwards.
+    /// </summary>
+    private void BuildDataServices(string databasePath, string settingsPath, string thumbnailDirectory)
+    {
+        SettingsPersistence = new SettingsStore(settingsPath);
+        Settings = SettingsPersistence.Load();
+
+        var connectionFactory = new SqliteConnectionFactory(databasePath);
+        ClipboardRepository = new ClipboardRepository(connectionFactory);
+        var shelfRepository = new ShelfRepository(connectionFactory);
+        _shelfSession = new ShelfSessionManager(shelfRepository);
+
+        _clipboardMonitor = new ClipboardMonitorService(ClipboardRepository, thumbnailDirectory);
+        PasteService = new PasteService(_clipboardMonitor);
+
+        var clipboardWriter = new ClipboardWriterImpl(Dispatcher, _clipboardMonitor);
+        var shellLauncher = new ShellLauncherImpl(Dispatcher, () => _panelWindow is not null
+            ? new WindowInteropHelper(_panelWindow).Handle
+            : IntPtr.Zero);
+        QuickActions = new QuickActionsEngine(_shelfSession, clipboardWriter, shellLauncher);
+    }
+
+    private async Task RunScreenshotModeAsync(string outputDirectory)
+    {
+        Shutdown(await ScreenshotCapture.RunAsync(this, outputDirectory));
     }
 
     private static DragTriggerOptions BuildDragTriggerOptions(AppSettings settings) => new()
