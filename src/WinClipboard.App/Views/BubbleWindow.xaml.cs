@@ -303,10 +303,17 @@ public partial class BubbleWindow : Window
     private async void OnAutoHideTick(object? sender, EventArgs e)
     {
         _autoHideTimer.Stop();
-        // Only an empty shelf goes away on its own; one holding something is still wanted.
-        if (await ReloadAsync() == 0 && !_suppressDeactivateHide)
+        try
         {
-            HideWithAnimation();
+            // Only an empty shelf goes away on its own; one holding something is still wanted.
+            if (await ReloadAsync() == 0 && !_suppressDeactivateHide)
+            {
+                HideWithAnimation();
+            }
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble auto-hide", ex);
         }
     }
 
@@ -364,7 +371,18 @@ public partial class BubbleWindow : Window
             return;
         }
 
-        await AddToShelfAsync(dropped);
+        // Nothing past this point is allowed to take the app down with it. These handlers are
+        // `async void`, so once the first await has run there is no caller left to catch anything
+        // they throw — it goes straight to the dispatcher, and a drop that fails on one awkward
+        // file used to end the session and the shelf along with it.
+        try
+        {
+            await AddToShelfAsync(dropped);
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble drop", ex);
+        }
         RestartAutoHideTimer();
     }
 
@@ -496,24 +514,39 @@ public partial class BubbleWindow : Window
             ? ShelfDropReader.Read(e.Data, shelfId: 0, firstSortOrder: 0)
             : [];
 
-        if (draggedIds is null)
+        try
         {
-            await AddToShelfAsync(fromOutside);
+            if (draggedIds is null)
+            {
+                await AddToShelfAsync(fromOutside);
+            }
+
+            var shelfItems = await _app.ShelfSession.GetItemsAsync(_shelfId);
+            var target = draggedIds is not null
+                ? shelfItems.Where(i => draggedIds.Contains(i.Id)).ToList()
+                : fromOutside;
+
+            await RunActionAsync(action, target);
         }
-
-        var shelfItems = await _app.ShelfSession.GetItemsAsync(_shelfId);
-        var target = draggedIds is not null
-            ? shelfItems.Where(i => draggedIds.Contains(i.Id)).ToList()
-            : fromOutside;
-
-        await RunActionAsync(action, target);
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble action drop", ex);
+        }
     }
 
     private async void OnActionClicked(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: QuickActionType action })
+        if (sender is not Button { Tag: QuickActionType action })
+        {
+            return;
+        }
+        try
         {
             await RunActionAsync(action, await _app.ShelfSession.GetItemsAsync(_shelfId));
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble action click", ex);
         }
     }
 
@@ -579,8 +612,15 @@ public partial class BubbleWindow : Window
     /// </summary>
     private async void OnClearClicked(object sender, RoutedEventArgs e)
     {
-        await _app.ShelfSession.ClearItemsAsync(_shelfId);
-        await ReloadAsync();
+        try
+        {
+            await _app.ShelfSession.ClearItemsAsync(_shelfId);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble clear", ex);
+        }
         RestartAutoHideTimer();
     }
 }

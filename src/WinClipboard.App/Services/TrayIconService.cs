@@ -87,6 +87,23 @@ public sealed class TrayIconService : IDisposable
         return Icon.FromHandle(handle);
     }
 
+    /// <summary>
+    /// Balloon notification from the tray. Used when an action fails but the app carries on —
+    /// without it a drop that threw would simply appear to do nothing, which is indistinguishable
+    /// from the app ignoring the user.
+    /// </summary>
+    public void ShowWarning(string title, string message)
+    {
+        try
+        {
+            _notifyIcon.ShowBalloonTip(6000, title, message, ToolTipIcon.Warning);
+        }
+        catch
+        {
+            // A notification that cannot be shown is not worth a second failure.
+        }
+    }
+
     public void Dispose()
     {
         _notifyIcon.Visible = false;

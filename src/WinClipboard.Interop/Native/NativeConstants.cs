@@ -78,5 +78,7 @@ internal static class NativeConstants
     /// <summary>Includes layered windows in the copy, which is most of what floats above the desktop these days.</summary>
     public const uint CAPTUREBLT = 0x40000000;
     public const uint DIB_RGB_COLORS = 0;
+    /// <summary>sizeof(BITMAPINFOHEADER). Fixed by the API, and not the size of our BITMAPINFO struct, which also carries the colour table.</summary>
+    public const uint BITMAPINFOHEADER_SIZE = 40;
     public const uint BI_RGB = 0;
 }

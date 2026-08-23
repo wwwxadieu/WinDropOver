@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using WinClipboard.Interop.Native;
 
 namespace WinClipboard.Interop;
@@ -62,7 +61,7 @@ public static class ScreenCapture
 
             var header = new BITMAPINFO
             {
-                biSize = (uint)Marshal.SizeOf<BITMAPINFO>(),
+                biSize = NativeConstants.BITMAPINFOHEADER_SIZE,
                 biWidth = width,
                 biHeight = -height,
                 biPlanes = 1,
