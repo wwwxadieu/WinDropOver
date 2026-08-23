@@ -20,13 +20,15 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid Grid.Row="0" Margin="0,0,0,10">
                 <TextBox x:Name="SearchBox" Style="{StaticResource SearchBoxStyle}" TextChanged="OnSearchTextChanged" />
-                <TextBlock x:Name="SearchPlaceholder" Text="Tìm trong lịch sử..." Foreground="{StaticResource TextSecondaryBrush}"
-                           Margin="10,7" IsHitTestVisible="False" />
+                <!-- Vertically centred to match the text box's own centred content, so the
+                     placeholder sits exactly where the caret will. -->
+                <TextBlock x:Name="SearchPlaceholder" Text="Tìm trong lịch sử..." Foreground="{StaticResource TextMutedBrush}"
+                           FontSize="13" Margin="13,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" />
             </Grid>
 
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
                 <RadioButton x:Name="FilterAll" Content="Tất cả" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" IsChecked="True" Checked="OnFilterChanged" Margin="0,0,4,0" />
                 <RadioButton x:Name="FilterText" Content="Văn bản" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" Checked="OnFilterChanged" Margin="0,0,4,0" />
                 <RadioButton x:Name="FilterImage" Content="Ảnh" GroupName="TypeFilter" Style="{StaticResource FilterChipStyle}" Checked="OnFilterChanged" Margin="0,0,4,0" />
