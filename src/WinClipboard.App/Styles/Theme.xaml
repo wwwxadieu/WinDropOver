@@ -8,6 +8,15 @@
         the look degrades to a plain semi-transparent panel either way.
     -->
     <SolidColorBrush x:Key="SurfaceBrush" Color="#F51E1E1E" />
+    <!--
+        The shelf card's surface. Translucent enough that what is underneath reads through it, so
+        the card sits *over* the desktop rather than on top of it, but far enough from clear that
+        filenames stay legible against a busy background. The border is brighter than the app's
+        usual one because a glass edge is the only thing separating the card from whatever it
+        happens to be floating above.
+    -->
+    <SolidColorBrush x:Key="GlassBrush" Color="#D91C1C20" />
+    <SolidColorBrush x:Key="GlassBorderBrush" Color="#40FFFFFF" />
     <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#FF262626" />
     <SolidColorBrush x:Key="SurfaceBorderBrush" Color="#26FFFFFF" />
     <SolidColorBrush x:Key="AccentBrush" Color="#3B82F6" />

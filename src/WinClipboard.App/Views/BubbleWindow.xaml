@@ -1,6 +1,7 @@
 <Window x:Class="WinClipboard.App.Views.BubbleWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:WinClipboard.Core.Models;assembly=WinClipboard.Core"
         Title="WinClipboard"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -8,40 +9,100 @@
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="NoResize"
-        Width="72" Height="72"
+        Width="300" Height="248"
         AllowDrop="True"
         SourceInitialized="OnSourceInitialized"
         DragEnter="OnDragEnter"
         DragOver="OnDragOver"
         DragLeave="OnDragLeave"
-        Drop="OnDrop"
-        MouseLeftButtonUp="OnClicked">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="72" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+        Drop="OnDrop">
+    <!--
+        Glass by translucency rather than by DWM's acrylic backdrop. The real thing would blur
+        what is behind the window instead of merely tinting it, but it requires turning
+        AllowsTransparency off — and without that WPF cannot render a transparent pixel, so the
+        card would need an opaque background, which is precisely what the backdrop needs to show
+        through. The two rule each other out. Given the appearance of the whole window rides on
+        it and none of it can be tried outside Windows, this takes the version that behaves the
+        same on Windows 10 and 11 over the one that looks better when it works.
+    -->
+    <Border x:Name="RootBackground" Background="{StaticResource GlassBrush}" CornerRadius="14"
+            BorderBrush="{StaticResource GlassBorderBrush}" BorderThickness="1" Padding="14,12">
+        <Border.Effect>
+            <DropShadowEffect Color="Black" Opacity="0.45" BlurRadius="24" ShadowDepth="3" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0">
-            <Border x:Name="BubbleBorder" Width="72" Height="72" CornerRadius="36"
-                    Background="{StaticResource AccentBrush}" Opacity="0.92">
-                <Border.Effect>
-                    <DropShadowEffect Color="Black" Opacity="0.4" BlurRadius="18" ShadowDepth="2" />
-                </Border.Effect>
-            </Border>
-            <TextBlock x:Name="CountText" Text="0" Foreground="White" FontSize="22" FontWeight="Bold"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
+            <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                <TextBlock x:Name="CountText" DockPanel.Dock="Right" Text="0 mục"
+                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" VerticalAlignment="Center" />
+                <TextBlock x:Name="ShelfNameText" Text="Shelf" Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+
+            <!-- The whole card takes drops; this is just where what landed is shown. -->
+            <Grid Grid.Row="1">
+                <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
+                         MouseMove="OnItemMouseMove"
+                         MouseLeftButtonUp="OnItemMouseUp">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="2,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Glyph}" FontSize="15" Margin="0,0,8,0"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"
+                            IsHitTestVisible="False">
+                    <TextBlock Text="Thả tệp vào đây" Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="13" HorizontalAlignment="Center" />
+                    <TextBlock Text="từ bất kỳ thư mục hay ứng dụng nào"
+                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                               Margin="0,4,0,0" HorizontalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+
+            <!--
+                Always present, not only on an empty shelf. Dropping onto a tile runs that action
+                on just what was dropped; clicking it runs it on everything the shelf holds.
+            -->
+            <UniformGrid x:Name="ActionBar" Grid.Row="2" Rows="1" Margin="0,10,0,0">
+                <Button Content="Chuyển" Tag="{x:Static models:QuickActionType.MoveToFolder}"
+                        ToolTip="Thả vào đây để chuyển, hoặc bấm để chuyển cả shelf"
+                        Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
+                        DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
+                        DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
+                <Button Content="Sao chép" Tag="{x:Static models:QuickActionType.CopyToFolder}"
+                        ToolTip="Thả vào đây để sao chép, hoặc bấm để sao chép cả shelf"
+                        Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
+                        DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
+                        DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
+                <Button Content="Nén ZIP" Tag="{x:Static models:QuickActionType.Zip}"
+                        ToolTip="Thả vào đây để nén, hoặc bấm để nén cả shelf"
+                        Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
+                        DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
+                        DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
+                <Button Content="Mở panel" Tag="{x:Null}"
+                        ToolTip="Mở panel đầy đủ: nhiều shelf, đổi tên, sắp xếp"
+                        Style="{StaticResource QuickActionButtonStyle}" Click="OnOpenPanelClicked" />
+            </UniformGrid>
         </Grid>
-
-        <!--
-            Instant Actions: only shown while a drag is hovering an empty shelf. Dropping straight
-            onto one of these collects the items and runs that action in a single gesture, instead
-            of the collect-then-open-panel-then-click route.
-        -->
-        <Border x:Name="InstantActionsPanel" Grid.Row="1" Visibility="Collapsed"
-                Margin="0,6,0,0" Padding="6"
-                Style="{StaticResource OverlayChromeStyle}">
-            <StackPanel x:Name="InstantActionsList" />
-        </Border>
-    </Grid>
+    </Border>
 </Window>

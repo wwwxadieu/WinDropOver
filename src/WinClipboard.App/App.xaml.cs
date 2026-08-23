@@ -235,6 +235,15 @@ public partial class App : System.Windows.Application
         }
     }
 
+    /// <summary>
+    /// Opens the full panel beside the shelf card. No longer the way to see what the shelf holds —
+    /// the card shows that itself — so this is only for what does not fit on it: several shelves,
+    /// renaming, reordering.
+    /// </summary>
+    internal void OpenShelfPanel(BubbleWindow bubble) =>
+        _ = ReportIfFaultedAsync(GetOrCreatePanelWindow()
+            .ShowNextToAsync(bubble, Settings.EnabledEdges.FirstOrDefault(ScreenEdge.Right)));
+
     internal ShelfPanelWindow GetOrCreatePanelWindow()
     {
         _panelWindow ??= new ShelfPanelWindow(this);

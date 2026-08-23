@@ -4,38 +4,31 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using WinClipboard.App.Services;
+using WinClipboard.App.ViewModels;
 using WinClipboard.Core.Models;
 using WinClipboard.Interop;
 
 namespace WinClipboard.App.Views;
 
 /// <summary>
-/// The pill/circle that appears at a screen edge once <see cref="ShelfDragTrigger"/> fires
-/// (plan 3.2 Overlay/Bubble Window). Stays visible at the edge for as long as the active shelf
-/// has items, accepting further drops, until auto-hide kicks in.
+/// The shelf itself — a floating card that appears under the cursor when a drag trigger fires,
+/// shows what it holds, and takes drops anywhere on its surface.
+///
+/// It used to be a 72px circle with a count on it, which meant the thing you dropped onto and
+/// the thing that showed you the result were two different windows with a click between them.
+/// Dropover has no such step: what appears mid-drag is already the shelf. So the card shows its
+/// contents and carries the action bar, and the separate panel is now only for what does not fit
+/// — several shelves, renaming, reordering.
 /// </summary>
 public partial class BubbleWindow : Window
 {
-    private const double CollapsedHeight = 72;
-
-    /// <summary>
-    /// Instant Actions offered when a drag hovers an empty shelf. Kept short deliberately —
-    /// Dropover allows up to nine, but every extra tile is another thing to aim at while already
-    /// holding a drag, so this is the subset that needs no prior configuration.
-    /// </summary>
-    private static readonly (QuickActionType Action, string Label)[] InstantActions =
-    [
-        (QuickActionType.Zip, "Nén ZIP"),
-        (QuickActionType.CopyToFolder, "Sao chép vào..."),
-        (QuickActionType.MoveToFolder, "Chuyển vào..."),
-        (QuickActionType.CopyToClipboard, "Copy")
-    ];
-
     private readonly App _app;
     private readonly DispatcherTimer _autoHideTimer;
-    private ScreenEdge _currentEdge = ScreenEdge.Right;
-    private bool _instantActionsVisible;
+    private long _shelfId;
+    private Point? _dragStartPoint;
+    private bool _suppressDeactivateHide;
 
     public BubbleWindow(App app)
     {
@@ -50,48 +43,32 @@ public partial class BubbleWindow : Window
     {
         try
         {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            WindowStyleHelper.MakeLayeredToolWindow(hwnd);
+            WindowStyleHelper.MakeLayeredToolWindow(new WindowInteropHelper(this).Handle);
         }
         catch
         {
-            // Best-effort: the window still behaves correctly without this, just with slightly
-            // different Alt+Tab/taskbar visuals than a real tool window.
+            // Best-effort: without it the card still works, it just shows up in Alt+Tab.
         }
     }
 
     /// <summary>
     /// Shows the shelf centred on a screen point, in the physical pixels the mouse hook reports.
     ///
-    /// Centred on the cursor, not parked at a screen edge, because the gesture that summons this
-    /// happens mid-drag: the user is already holding files somewhere in the middle of the screen.
-    /// A shelf that appears at the edge means dragging all the way over to it before letting go,
-    /// which is most of the work the shelf exists to save — and looks exactly like drag-and-drop
-    /// being broken when you release where you are and nothing happens. Under the cursor, letting
-    /// go without moving at all is a drop.
-    ///
-    /// Always shows, even with nothing on the shelf. It used to hide itself when the shelf was
-    /// empty, which defeated the entire gesture: you shake while dragging a file precisely
-    /// *because* the shelf is empty and you want to start filling it, so the one moment the shelf
-    /// was most needed was the one moment it refused to appear. Auto-hide still exists, but it
-    /// belongs to the idle timer below — hiding something the user just asked for is not
-    /// auto-hide, it is not showing up.
-    ///
-    /// Task-returning (not async void) so failures surface to the caller instead of crashing the
-    /// process.
+    /// Centred on the cursor rather than parked at a screen edge because the gesture that summons
+    /// this happens mid-drag: letting go without moving at all has to be a drop, or the shelf
+    /// costs more than it saves.
     /// </summary>
     public async Task ShowAtPointAsync(int screenX, int screenY)
     {
-        // Realise the handle without showing the window, so it can be positioned before it is
-        // ever painted: showing first and moving after is a visible jump across the screen.
+        // Realise the handle without showing, so the card can be positioned before it is painted:
+        // showing first and moving after is a visible jump across the screen.
         var hwnd = new WindowInteropHelper(this).EnsureHandle();
         WindowPlacement.CentreOnScreenPoint(hwnd, screenX, screenY);
 
-        await RefreshCountAsync();
+        await ReloadAsync();
 
         Show();
-        // Position again after Show(): WPF applies its own placement as part of showing, which
-        // would otherwise undo the one above.
+        // Again after Show(): WPF applies its own placement as part of showing.
         WindowPlacement.CentreOnScreenPoint(hwnd, screenX, screenY);
         RestartAutoHideTimer();
     }
@@ -103,12 +80,17 @@ public partial class BubbleWindow : Window
         return ShowAtPointAsync(x, y);
     }
 
-    /// <summary>Updates the badge and returns the item count. Deciding whether to hide is the caller's, so this cannot fight with a Show() that follows it.</summary>
-    private async Task<int> RefreshCountAsync()
+    /// <summary>Reloads the card's contents. Returns the item count for callers that care.</summary>
+    public async Task<int> ReloadAsync()
     {
-        var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
-        var items = await _app.ShelfSession.GetItemsAsync(shelfId);
-        CountText.Text = items.Count.ToString();
+        _shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
+        var shelf = await _app.ShelfSession.GetShelfAsync(_shelfId);
+        var items = await _app.ShelfSession.GetItemsAsync(_shelfId);
+
+        ShelfNameText.Text = shelf?.Name ?? "Shelf";
+        CountText.Text = $"{items.Count} mục";
+        ItemsList.ItemsSource = items.Select(ShelfItemView.From).ToList();
+        EmptyState.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         return items.Count;
     }
 
@@ -126,37 +108,25 @@ public partial class BubbleWindow : Window
     private async void OnAutoHideTick(object? sender, EventArgs e)
     {
         _autoHideTimer.Stop();
-        var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
-        var items = await _app.ShelfSession.GetItemsAsync(shelfId);
-        if (items.Count == 0)
+        // Only an empty shelf goes away on its own; one holding something is still wanted.
+        if (await ReloadAsync() == 0 && !_suppressDeactivateHide)
         {
             Hide();
         }
     }
 
-    private async void OnDragEnter(object sender, DragEventArgs e)
+    // ---------------- Taking drops ----------------
+
+    private void OnDragEnter(object sender, DragEventArgs e)
     {
         SetDropEffect(e);
-        BubbleBorder.Opacity = 1.0;
-        BubbleBorder.RenderTransform = new ScaleTransform(1.12, 1.12, 36, 36);
-
-        // Ask the data object what it holds *before* yielding. It belongs to the OLE drag loop,
-        // which ends the moment this handler awaits, so anything read afterwards is read from a
-        // payload that may already have been released.
-        var canRead = ShelfDropReader.CanRead(e.Data);
-
-        // Instant Actions only make sense on an empty shelf: once it holds something, a drop
-        // means "add to the pile", and running an action would act on the pile too.
-        var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
-        var isEmpty = (await _app.ShelfSession.GetItemsAsync(shelfId)).Count == 0;
-        if (isEmpty && canRead)
-        {
-            ShowInstantActions();
-        }
+        RootBackground.BorderBrush = (Brush)FindResource("AccentBrush");
     }
 
-    // WPF asks again on every move, so DragEnter alone is not enough to keep the copy cursor.
     private void OnDragOver(object sender, DragEventArgs e) => SetDropEffect(e);
+
+    private void OnDragLeave(object sender, DragEventArgs e) =>
+        RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
 
     private static void SetDropEffect(DragEventArgs e)
     {
@@ -164,119 +134,186 @@ public partial class BubbleWindow : Window
         e.Handled = true;
     }
 
-    private void OnDragLeave(object sender, DragEventArgs e)
+    private async void OnDrop(object sender, DragEventArgs e)
     {
-        BubbleBorder.Opacity = 0.92;
-        BubbleBorder.RenderTransform = null;
-        HideInstantActions();
-    }
+        e.Handled = true;
+        RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
 
-    private void ShowInstantActions()
-    {
-        if (_instantActionsVisible)
+        // Read the payload before the first await: it belongs to the OLE drag loop, which lets go
+        // the moment this handler yields, and reading it afterwards is how a drop that visibly
+        // landed ends up adding nothing.
+        var dropped = ShelfDropReader.Read(e.Data, shelfId: 0, firstSortOrder: 0);
+        if (dropped.Count == 0)
         {
             return;
         }
 
-        InstantActionsList.Children.Clear();
-        foreach (var (action, label) in InstantActions)
-        {
-            InstantActionsList.Children.Add(BuildActionTile(action, label));
-        }
-
-        InstantActionsPanel.Visibility = Visibility.Visible;
-        _instantActionsVisible = true;
-
-        // The window has to physically grow, otherwise the tiles fall outside it and never
-        // receive the drop.
-        InstantActionsPanel.UpdateLayout();
-        Height = CollapsedHeight + InstantActionsPanel.ActualHeight + 6;
-        KeepOnScreen();
+        await AddToShelfAsync(dropped);
+        RestartAutoHideTimer();
     }
 
-    private void HideInstantActions()
+    /// <summary>Stamps the real shelf and ordering onto freshly parsed items, which are only knowable after awaiting.</summary>
+    private async Task AddToShelfAsync(List<ShelfItem> items)
     {
-        if (!_instantActionsVisible)
-        {
-            return;
-        }
-        InstantActionsPanel.Visibility = Visibility.Collapsed;
-        _instantActionsVisible = false;
-        Height = CollapsedHeight;
-        // Collapsing shrinks the window upward from its top-left, which is where it already is,
-        // so there is nothing to reposition — the shelf stays put under the cursor that summoned it.
-    }
-
-    private Border BuildActionTile(QuickActionType action, string label)
-    {
-        var tile = new Border
-        {
-            Background = (Brush)FindResource("RowHoverBrush"),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 6, 8, 6),
-            Margin = new Thickness(0, 0, 0, 4),
-            AllowDrop = true,
-            Child = new TextBlock
-            {
-                Text = label,
-                Foreground = (Brush)FindResource("TextPrimaryBrush"),
-                FontSize = 11,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                IsHitTestVisible = false
-            }
-        };
-
-        tile.DragEnter += (_, args) =>
-        {
-            tile.Background = (Brush)FindResource("AccentBrush");
-            args.Effects = DragDropEffects.Copy;
-            args.Handled = true;
-        };
-        tile.DragOver += (_, args) =>
-        {
-            args.Effects = DragDropEffects.Copy;
-            args.Handled = true;
-        };
-        tile.DragLeave += (_, _) => tile.Background = (Brush)FindResource("RowHoverBrush");
-        tile.Drop += async (_, args) =>
-        {
-            args.Handled = true;   // Stop the window-level Drop from also collecting these items.
-            tile.Background = (Brush)FindResource("RowHoverBrush");
-            await RunInstantActionAsync(action, args.Data);
-        };
-
-        return tile;
-    }
-
-    /// <summary>Collects the dropped items onto the shelf, then immediately runs the chosen action over them.</summary>
-    private async Task RunInstantActionAsync(QuickActionType action, IDataObject data)
-    {
-        HideInstantActions();
-
         var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
-        var items = ShelfDropReader.Read(data, shelfId, firstSortOrder: 0);
+        var firstSortOrder = (await _app.ShelfSession.GetItemsAsync(shelfId)).Count;
+
         foreach (var item in items)
         {
-            await _app.ShelfSession.AddItemAsync(item);
+            item.ShelfId = shelfId;
+            item.SortOrder += firstSortOrder;
+            item.Id = await _app.ShelfSession.AddItemAsync(item);
         }
 
-        var shelf = await _app.ShelfSession.GetShelfAsync(shelfId);
-        var targetPath = shelf?.DefaultTargetPath;
-        if (NeedsTargetFolder(action) && string.IsNullOrWhiteSpace(targetPath))
+        await ReloadAsync();
+    }
+
+    // ---------------- Dragging items back out ----------------
+
+    private void OnItemPreviewMouseDown(object sender, MouseButtonEventArgs e) => _dragStartPoint = e.GetPosition(null);
+
+    private void OnItemMouseUp(object sender, MouseButtonEventArgs e) => _dragStartPoint = null;
+
+    private void OnItemMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
         {
-            var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Chọn thư mục đích" };
-            if (dialog.ShowDialog() != true)
-            {
-                // Cancelled: the items stay on the shelf, so nothing the user dragged is lost.
-                await RefreshCountAsync();
-                return;
-            }
-            targetPath = dialog.FolderName;
+            return;
         }
 
-        var result = await _app.QuickActions.ExecuteAsync(shelfId, action, targetPath);
+        var diff = _dragStartPoint.Value - e.GetPosition(null);
+        if (Math.Abs(diff.X) < 8 && Math.Abs(diff.Y) < 8)
+        {
+            return;
+        }
+        _dragStartPoint = null;
 
-        // A move consumes the files, so anything that succeeded should leave the shelf.
+        if (e.OriginalSource is not DependencyObject source || FindItemView(source) is not { } view)
+        {
+            return;
+        }
+
+        var data = BuildDragData(view);
+        if (data is not null)
+        {
+            DragDrop.DoDragDrop(ItemsList, data, DragDropEffects.Copy | DragDropEffects.Move);
+        }
+    }
+
+    private static ShelfItemView? FindItemView(DependencyObject source)
+    {
+        for (var current = source; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is FrameworkElement { DataContext: ShelfItemView view })
+            {
+                return view;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Carries the standard shell formats so the drag works into Explorer, plus the item's own id so a drop onto one of this card's own action tiles can act on exactly that item.</summary>
+    private static System.Windows.DataObject? BuildDragData(ShelfItemView view)
+    {
+        System.Windows.DataObject? data = view.Model.Type switch
+        {
+            ShelfItemType.File when view.Model.FilePath is not null =>
+                new System.Windows.DataObject(DataFormats.FileDrop, new[] { view.Model.FilePath }),
+            ShelfItemType.Text or ShelfItemType.Link when view.Model.TextContent is not null =>
+                new System.Windows.DataObject(DataFormats.UnicodeText, view.Model.TextContent),
+            _ => null
+        };
+        data?.SetData(ShelfItemIdsFormat, view.Model.Id.ToString());
+        return data;
+    }
+
+    // ---------------- The action bar ----------------
+
+    private const string ShelfItemIdsFormat = "WinClipboard.ShelfItemIds";
+
+    private void OnActionDragEnter(object sender, DragEventArgs e)
+    {
+        SetActionDropEffect(sender, e);
+        if (e.Effects != DragDropEffects.None && sender is Button button)
+        {
+            button.Background = (Brush)FindResource("AccentBrush");
+        }
+    }
+
+    private void OnActionDragOver(object sender, DragEventArgs e) => SetActionDropEffect(sender, e);
+
+    private void OnActionDragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            button.ClearValue(BackgroundProperty);
+        }
+    }
+
+    private static void SetActionDropEffect(object sender, DragEventArgs e)
+    {
+        var accepted = e.Data.GetDataPresent(ShelfItemIdsFormat) || ShelfDropReader.CanRead(e.Data);
+        e.Effects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    /// <summary>Runs the dropped-on action against what was dragged: items from this shelf are matched by id, anything from outside is collected onto the shelf first so one gesture both collects and acts.</summary>
+    private async void OnActionDrop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Button { Tag: QuickActionType action } button)
+        {
+            return;
+        }
+        button.ClearValue(BackgroundProperty);
+
+        // Everything read from the data object happens here, before the first await.
+        var draggedIds = (e.Data.GetData(ShelfItemIdsFormat) as string)?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => long.TryParse(t, out var id) ? id : (long?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet();
+        List<ShelfItem> fromOutside = draggedIds is null
+            ? ShelfDropReader.Read(e.Data, shelfId: 0, firstSortOrder: 0)
+            : [];
+
+        if (draggedIds is null)
+        {
+            await AddToShelfAsync(fromOutside);
+        }
+
+        var shelfItems = await _app.ShelfSession.GetItemsAsync(_shelfId);
+        var target = draggedIds is not null
+            ? shelfItems.Where(i => draggedIds.Contains(i.Id)).ToList()
+            : fromOutside;
+
+        await RunActionAsync(action, target);
+    }
+
+    private async void OnActionClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: QuickActionType action })
+        {
+            await RunActionAsync(action, await _app.ShelfSession.GetItemsAsync(_shelfId));
+        }
+    }
+
+    private async Task RunActionAsync(QuickActionType action, IReadOnlyList<ShelfItem> items)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var targetPath = await ResolveTargetPathAsync(action);
+        if (targetPath is null && NeedsTargetFolder(action))
+        {
+            return;   // Folder picker cancelled; the shelf keeps everything.
+        }
+
+        var result = await _app.QuickActions.ExecuteOnItemsAsync(items, action, targetPath);
+
         if (action == QuickActionType.MoveToFolder)
         {
             foreach (var itemResult in result.ItemResults.Where(r => r.Succeeded))
@@ -285,60 +322,34 @@ public partial class BubbleWindow : Window
             }
         }
 
-        await RefreshCountAsync();
+        await ReloadAsync();
         RestartAutoHideTimer();
+    }
+
+    private async Task<string?> ResolveTargetPathAsync(QuickActionType action)
+    {
+        if (!NeedsTargetFolder(action))
+        {
+            return null;
+        }
+
+        var shelf = await _app.ShelfSession.GetShelfAsync(_shelfId);
+        if (!string.IsNullOrWhiteSpace(shelf?.DefaultTargetPath))
+        {
+            return shelf.DefaultTargetPath;
+        }
+
+        // The picker takes focus, which would otherwise let the idle timer decide the shelf had
+        // been abandoned and hide it out from under the dialog.
+        _suppressDeactivateHide = true;
+        var dialog = new OpenFolderDialog { Title = "Chọn thư mục đích" };
+        var picked = dialog.ShowDialog() == true;
+        _suppressDeactivateHide = false;
+        return picked ? dialog.FolderName : null;
     }
 
     private static bool NeedsTargetFolder(QuickActionType action) =>
         action is QuickActionType.MoveToFolder or QuickActionType.CopyToFolder or QuickActionType.Zip;
 
-    /// <summary>After the window grows downward it can run off the bottom of the work area; nudge it back up.</summary>
-    private void KeepOnScreen()
-    {
-        var workArea = SystemParameters.WorkArea;
-        if (Top + Height > workArea.Bottom)
-        {
-            Top = Math.Max(workArea.Top, workArea.Bottom - Height - 4);
-        }
-    }
-
-    private async void OnDrop(object sender, DragEventArgs e)
-    {
-        BubbleBorder.Opacity = 0.92;
-        BubbleBorder.RenderTransform = null;
-        // Only reached when the drop landed on the bubble itself; a drop on an action tile is
-        // handled there and marked Handled so it never gets here.
-        HideInstantActions();
-
-        // Read the payload before the first await, for the reason given in OnDragEnter: the drag
-        // loop owns it and lets go as soon as this handler yields. Reading it afterwards is how a
-        // drop that visibly succeeded ends up adding nothing at all.
-        var dropped = ShelfDropReader.Read(e.Data, shelfId: 0, firstSortOrder: 0);
-        if (dropped.Count == 0)
-        {
-            return;
-        }
-
-        var shelfId = await _app.ShelfSession.EnsureDefaultShelfAsync();
-        var firstSortOrder = (await _app.ShelfSession.GetItemsAsync(shelfId)).Count;
-
-        foreach (var item in dropped)
-        {
-            // The real shelf and ordering are only knowable after the awaits above, so they are
-            // stamped on here rather than at parse time.
-            item.ShelfId = shelfId;
-            item.SortOrder += firstSortOrder;
-            await _app.ShelfSession.AddItemAsync(item);
-        }
-
-        await RefreshCountAsync();
-        RestartAutoHideTimer();
-    }
-
-    private void OnClicked(object sender, MouseButtonEventArgs e)
-    {
-        var panel = _app.GetOrCreatePanelWindow();
-        _ = App.ReportIfFaultedAsync(panel.ShowNextToAsync(this, _currentEdge));
-        RestartAutoHideTimer();
-    }
+    private void OnOpenPanelClicked(object sender, RoutedEventArgs e) => _app.OpenShelfPanel(this);
 }
