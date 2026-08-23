@@ -3,7 +3,14 @@ using WinClipboard.Interop.Native;
 
 namespace WinClipboard.Interop.Hooks;
 
-public sealed class MouseHookEventArgs : EventArgs
+/// <summary>
+/// A struct, not a class, because one of these is produced for every single mouse message the
+/// system sees - including every WM_MOUSEMOVE, at up to a thousand a second on a high-polling-rate
+/// mouse, whether or not this application is doing anything with them. As a class that was a heap
+/// allocation per mouse movement for the whole time the app was running, which is a background
+/// cost the user pays for nothing. EventHandler&lt;T&gt; has not required T : EventArgs since .NET 4.5.
+/// </summary>
+public readonly struct MouseHookEventArgs
 {
     public required int X { get; init; }
     public required int Y { get; init; }
@@ -16,9 +23,14 @@ public sealed class MouseHookEventArgs : EventArgs
 
 /// <summary>
 /// Wraps WH_MOUSE_LL. Per the plan's risk mitigation (section 6): the callback only reads the
-/// struct fields and raises a .NET event — no I/O, no allocation beyond the event args, so a
-/// slow subscriber can never make Windows think the hook itself is unresponsive and silently
-/// unhook it. Must be installed and pumped from the dedicated Win32 message-loop thread.
+/// struct fields and raises a .NET event — no I/O and no allocation at all.
+///
+/// That is only half the guarantee, and the half this class can enforce on its own. Subscribers
+/// run *inside* the callback, on the hook thread, so a subscriber that blocks blocks the hook -
+/// and Windows responds to a hook that overruns LowLevelHooksTimeout by removing it silently.
+/// Anything a subscriber wants the UI thread to do must therefore be posted, never waited on.
+///
+/// Must be installed and pumped from the dedicated Win32 message-loop thread.
 /// </summary>
 public sealed class LowLevelMouseHook : IDisposable
 {
@@ -26,6 +38,13 @@ public sealed class LowLevelMouseHook : IDisposable
     private IntPtr _hookHandle;
 
     public event EventHandler<MouseHookEventArgs>? MouseEvent;
+
+    /// <summary>
+    /// Environment.TickCount64 at the last callback, or 0 if there has not been one. Windows
+    /// removes a hook that overruns its timeout without saying so, and offers no way to ask
+    /// whether a hook is still live — going quiet is the only symptom there is.
+    /// </summary>
+    public long LastCallbackTicks { get; private set; }
 
     public LowLevelMouseHook()
     {
@@ -62,11 +81,18 @@ public sealed class LowLevelMouseHook : IDisposable
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0)
+        // Nothing here may block or do I/O. Windows delivers this synchronously ahead of the
+        // mouse event reaching any application, so time spent here is time the whole machine's
+        // pointer is stalled - and a callback that overruns LowLevelHooksTimeout (300ms by
+        // default) gets the hook silently removed, with no notification and no way back.
+        LastCallbackTicks = Environment.TickCount64;
+
+        var handler = MouseEvent;
+        if (nCode >= 0 && handler is not null)
         {
             var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
             var message = (int)wParam;
-            MouseEvent?.Invoke(this, new MouseHookEventArgs
+            handler(this, new MouseHookEventArgs
             {
                 X = data.pt.X,
                 Y = data.pt.Y,
@@ -76,6 +102,14 @@ public sealed class LowLevelMouseHook : IDisposable
             });
         }
         return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+    }
+
+    /// <summary>Uninstall and install again, to recover a hook Windows has silently dropped. Must be called on the thread that owns the hook.</summary>
+    public void Reinstall()
+    {
+        Uninstall();
+        Install();
+        LastCallbackTicks = Environment.TickCount64;
     }
 
     public void Dispose() => Uninstall();

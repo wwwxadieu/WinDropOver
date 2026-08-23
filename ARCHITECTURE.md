@@ -42,8 +42,23 @@ hành nào (đây là lý do 20/20 test của nó chạy được trên Linux).
 2. **Win32 message-loop thread riêng** (`Interop/Win32MessageWindow.cs`) — sở hữu
    `WH_MOUSE_LL`, `WH_KEYBOARD_LL`, các hotkey đã `RegisterHotKey`, và clipboard format listener.
    Chạy độc lập UI thread; khi có sự kiện (hotkey, clipboard đổi, trigger kéo-thả) nó chỉ raise
-   .NET event — `App.xaml.cs` luôn `Dispatcher.Invoke(...)` để nhảy về UI thread trước khi đụng
-   tới bất kỳ API WPF nào.
+   .NET event — `App.xaml.cs` luôn `Dispatcher.InvokeAsync(...)` để nhảy về UI thread trước khi
+   đụng tới bất kỳ API WPF nào.
+
+   **Quy tắc bất di bất dịch: thread này không bao giờ được chờ UI thread.** Không `Dispatcher.Invoke`,
+   không `Task.Wait`, không `Join` — chỉ `InvokeAsync` rồi trả về ngay. Lý do: Windows gọi callback
+   `WH_MOUSE_LL` **đồng bộ, trước khi sự kiện chuột tới bất kỳ ứng dụng nào**, nên thời gian ở
+   trong callback là thời gian con trỏ chuột của *cả máy* đứng hình. Và callback nào vượt quá
+   `LowLevelHooksTimeout` (mặc định 300ms) thì **Windows lặng lẽ gỡ hook**, không báo gì, không có
+   API nào để hỏi hook còn sống hay không — mọi trigger chết vĩnh viễn cho tới khi khởi động lại app.
+   Dựng một cửa sổ WPF lần đầu (parse XAML) thừa sức vượt mốc đó.
+
+   Vì cẩn thận vẫn không đủ (một nhịp GC hay máy đang tải nặng cũng đủ vượt 300ms),
+   `Win32MessageWindow` chạy thêm một `WM_TIMER` canh chừng: hook im quá 20 giây thì cài lại.
+
+   Cùng lý do đó, `MouseHookEventArgs` là **struct**: nó được tạo cho mỗi thông điệp chuột hệ thống
+   thấy — kể cả mọi `WM_MOUSEMOVE`, tới cả nghìn lần mỗi giây — nên nếu là class thì đó là một lần
+   cấp phát heap cho mỗi lần nhích chuột, suốt thời gian app chạy.
 3. **Background worker (ngầm định qua `async`/`await`)** — đọc/ghi SQLite, sinh thumbnail PNG,
    chạy Quick Actions đều là `async Task` không chặn hai thread trên; không có thread pool riêng
    được dựng thủ công vì khối lượng công việc trong một ứng dụng cá nhân này chưa cần đến.

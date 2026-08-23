@@ -71,5 +71,12 @@ public sealed class LowLevelKeyboardHook : IDisposable
         return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
 
+    /// <summary>Uninstall and install again, to recover a hook Windows has silently dropped. Must be called on the thread that owns the hook.</summary>
+    public void Reinstall()
+    {
+        Uninstall();
+        Install();
+    }
+
     public void Dispose() => Uninstall();
 }
