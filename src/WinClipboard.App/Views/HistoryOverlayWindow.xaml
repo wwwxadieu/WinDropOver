@@ -35,8 +35,15 @@
             </StackPanel>
 
             <Grid Grid.Row="2">
+                <!--
+                    HorizontalScrollBarVisibility="Disabled" is what makes TextTrimming work: with
+                    horizontal scrolling allowed, rows size to their content instead of the
+                    viewport, so long entries pushed the pin and delete buttons off-screen where
+                    they could not be clicked at all.
+                -->
                 <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0" MaxHeight="440"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          MouseLeftButtonUp="OnItemClicked">
                     <ListBox.ItemTemplate>
                         <DataTemplate>

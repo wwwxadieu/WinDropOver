@@ -141,6 +141,46 @@
         </Setter>
     </Style>
 
+    <!--
+        Implicit styles for the plain input controls. Without these, WPF's defaults render as
+        light-grey boxes with dark text — fine on a normal window, but jarring against the dark
+        surfaces every other window in this app uses, and the labels beside them are light text
+        that then has nothing to sit on.
+    -->
+    <Style TargetType="TextBox">
+        <Setter Property="Background" Value="#1AFFFFFF" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource SurfaceBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="6,4" />
+    </Style>
+
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="Background" Value="#1AFFFFFF" />
+        <Setter Property="BorderBrush" Value="{StaticResource SurfaceBorderBrush}" />
+    </Style>
+
+    <!-- The dropdown list is a separate popup and does not inherit the ComboBox's foreground. -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="Black" />
+    </Style>
+
+    <Style TargetType="Button">
+        <Setter Property="Background" Value="#1AFFFFFF" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource SurfaceBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+
     <!-- Implicit (no x:Key) so every ListBoxItem in the app picks this up automatically: a flat
          row that only shows an accent tint on hover/selection instead of the default blue box,
          which would look wrong against the translucent acrylic-style surfaces. -->

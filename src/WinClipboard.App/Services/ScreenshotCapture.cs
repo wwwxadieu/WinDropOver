@@ -298,13 +298,28 @@ internal static class ScreenshotCapture
                 $"{window.GetType().Name} rendered with a non-positive size ({width}x{height}).");
         }
 
+        // Only the window's Content is rendered, so a background set on the Window itself would
+        // be lost — SettingsWindow paints #202020 there and its light text came out white on
+        // white. Draw that background first, then the content over it, so the capture shows what
+        // the user actually sees. Windows whose Content carries its own chrome (the overlays,
+        // which are transparent by design) are unaffected.
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            if (window.Background is not null)
+            {
+                context.DrawRectangle(window.Background, null, new Rect(0, 0, width, height));
+            }
+            context.DrawRectangle(new VisualBrush(root), null, new Rect(0, 0, width, height));
+        }
+
         var bitmap = new RenderTargetBitmap(
             (int)Math.Ceiling(width * RenderScale),
             (int)Math.Ceiling(height * RenderScale),
             96 * RenderScale,
             96 * RenderScale,
             PixelFormats.Pbgra32);
-        bitmap.Render(root);
+        bitmap.Render(visual);
 
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

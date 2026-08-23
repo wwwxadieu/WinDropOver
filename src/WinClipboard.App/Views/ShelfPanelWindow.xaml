@@ -30,6 +30,7 @@
             <Grid Grid.Row="1">
                 <ListBox x:Name="ItemsList" Background="Transparent" BorderThickness="0" MaxHeight="300"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          PreviewMouseLeftButtonDown="OnItemPreviewMouseDown"
                          MouseMove="OnItemMouseMove"
                          MouseLeftButtonUp="OnItemMouseUp">
