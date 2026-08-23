@@ -116,14 +116,22 @@ lỗi theo từng item.
 - [x] Khởi động cùng Windows (`StartupRegistration` — ghi registry Run key).
 - [x] Trang cài đặt đầy đủ (`SettingsWindow` — rìa kích hoạt, phím giữ, tự ẩn bubble, giới hạn
       lịch sử, tự xoá dữ liệu nhạy cảm, khởi động cùng Windows).
-- [x] **Đóng gói .exe tự động** — [`.github/workflows/release-build.yml`](.github/workflows/release-build.yml)
-      publish `WinClipboard.App` dạng self-contained win-x64 single-file và đính kèm vào GitHub
-      Release (tự chạy khi push tag `v*`, hoặc chạy tay qua `workflow_dispatch`).
+- [x] **Đóng gói tự động** — [`.github/workflows/release-build.yml`](.github/workflows/release-build.yml)
+      publish `WinClipboard.App` dạng self-contained win-x64 single-file và đính **2 asset** vào
+      GitHub Release (tự chạy khi push tag `v*`, hoặc chạy tay qua `workflow_dispatch`):
+      bản `.zip` xách tay và bản `.msi` cài đặt.
+- [x] **Installer .msi** ([`installer/WinClipboard.wxs`](installer/WinClipboard.wxs), WiX v5) —
+      cài **theo từng người dùng** (`Scope="perUser"`, vào `%LocalAppData%\Programs`): không cần
+      quyền admin nên không hiện UAC, và khớp với chính cách app lưu dữ liệu (settings + SQLite ở
+      `%LocalAppData%`, "khởi động cùng Windows" ghi HKCU). Có lối tắt Start Menu, có mục gỡ cài
+      đặt trong Apps & features, cài bản mới tự thay bản cũ (`MajorUpgrade`).
+      **Lưu ý:** WiX không chạy được trên Linux nên file này **chỉ được kiểm chứng trên CI** —
+      vì vậy job `installer` trong `ci.yml` build MSI ở mọi push/PR, không đợi tới lúc phát hành.
 - [ ] **Ký số ứng dụng** — chưa có, cần chứng chỉ code-signing thật. Chưa ký thì SmartScreen sẽ
-      cảnh báo khi người dùng chạy lần đầu, và rủi ro "bị AV gắn cờ nhầm" trong bảng mục 6 vẫn
-      còn nguyên (app cài low-level keyboard hook nên càng dễ bị nghi).
-- [ ] **Installer thật** (.msi/winget) — hiện mới chỉ có .exe đóng gói sẵn trong file zip, chưa
-      có luồng cài/gỡ đúng nghĩa; cần quyết định kênh phân phối trước (mục 7 kế hoạch gốc).
+      cảnh báo khi người dùng chạy lần đầu (cả `.exe` lẫn `.msi`), và rủi ro "bị AV gắn cờ nhầm"
+      trong bảng mục 6 vẫn còn nguyên (app cài low-level keyboard hook nên càng dễ bị nghi).
+- [ ] **winget** — chưa nộp manifest; cần quyết định kênh phân phối (mục 7 kế hoạch gốc) và
+      thường yêu cầu installer đã ký số.
 - [ ] Danh sách loại trừ theo ứng dụng nguồn (`AppSettings.ExcludedSourceApps` có trong model
       nhưng **`ClipboardMonitorService` chưa đọc field này để thực sự bỏ qua** — cần nối dây
       thêm một điều kiện kiểm tra `SourceApp` trước khi lưu).

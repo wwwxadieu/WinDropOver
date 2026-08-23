@@ -21,6 +21,21 @@ Windows. Từ đó tới nay CI xanh liên tục.
 **Điều còn lại chưa được xác nhận: chưa ai chạy thử app trong thực tế.** Build được không có
 nghĩa là mọi hành vi runtime đều đúng — xem mục giới hạn bên dưới.
 
+## Cài đặt
+
+Tải ở [trang Releases](https://github.com/wwwxadieu/WinDropOver/releases). Mỗi bản phát hành có
+hai lựa chọn:
+
+| Tệp | Dùng khi |
+|---|---|
+| `WinClipboard-win-x64.msi` | **Cách thường dùng.** Cài theo từng người dùng vào `%LocalAppData%\Programs` — không cần quyền admin, có lối tắt Start Menu, gỡ được qua Apps & features. Cài bản mới tự thay bản cũ. |
+| `WinClipboard-win-x64.zip` | Bản xách tay: giải nén rồi chạy `WinClipboard.exe`, không ghi gì vào Start Menu hay danh sách chương trình. |
+
+Cả hai đều self-contained (đã nhúng .NET runtime), máy đích không cần cài thêm gì.
+
+**Chưa ký số**, nên lần chạy đầu Windows SmartScreen sẽ cảnh báo — bấm *More info → Run anyway*.
+App có cài low-level keyboard hook nên cũng có thể bị phần mềm diệt virus gắn cờ nhầm.
+
 ## Build & chạy (trên Windows)
 
 Yêu cầu: .NET 8 SDK, Windows 10 build 19041 trở lên (do dùng WinRT projection cho tính năng

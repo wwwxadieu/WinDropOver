@@ -1,9 +1,11 @@
 name: Release Build
 
-# Publishes WinClipboard.App as a self-contained win-x64 executable and uploads it as an asset
-# on the matching GitHub Release. Runs automatically when a v* tag is pushed, or manually via
-# workflow_dispatch (useful for attaching a build to a release that already exists, like
-# v0.1.0-alpha, which was published before this workflow existed).
+# Publishes WinClipboard.App as a self-contained win-x64 build and attaches two assets to the
+# matching GitHub Release: a portable .zip (unpack and run) and a per-user .msi installer
+# (Start Menu entry and a proper uninstall entry, no admin rights needed).
+#
+# Runs automatically when a v* tag is pushed, or manually via workflow_dispatch to attach a
+# build to a release that already exists.
 on:
   push:
     tags:
@@ -52,7 +54,35 @@ jobs:
           if ([string]::IsNullOrEmpty($t)) { $t = "${{ github.ref_name }}" }
           "tag=$t" >> $env:GITHUB_OUTPUT
 
+          # MSI ProductVersion is strictly numeric major.minor.build.revision, so the tag's
+          # leading "v" and any prerelease suffix ("-alpha") have to be stripped: v0.1.2-alpha
+          # becomes 0.1.2.0. Without this, wix rejects the version outright.
+          $v = $t -replace '^v', '' -replace '-.*$', ''
+          $parts = $v.Split('.')
+          while ($parts.Count -lt 3) { $parts += '0' }
+          $msiVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
+          "msiVersion=$msiVersion" >> $env:GITHUB_OUTPUT
+          Write-Host "Tag $t -> MSI version $msiVersion"
+
+      - name: Install WiX
+        run: dotnet tool install --global wix --version 5.*
+
+      - name: Build MSI installer
+        shell: pwsh
+        run: |
+          wix build installer\WinClipboard.wxs `
+            -d Version=${{ steps.tag.outputs.msiVersion }} `
+            -d PublishDir=publish `
+            -arch x64 `
+            -o WinClipboard-win-x64.msi
+          if (-not (Test-Path WinClipboard-win-x64.msi)) { throw "MSI was not produced" }
+          Get-Item WinClipboard-win-x64.msi | ForEach-Object { Write-Host "$($_.Name) $($_.Length) bytes" }
+
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ steps.tag.outputs.tag }}" WinClipboard-win-x64.zip --clobber
+        run: >
+          gh release upload "${{ steps.tag.outputs.tag }}"
+          WinClipboard-win-x64.zip
+          WinClipboard-win-x64.msi
+          --clobber

@@ -57,3 +57,43 @@ jobs:
             screenshots/*.png
             screenshots/screenshot-log.txt
           if-no-files-found: warn
+
+  # Builds the MSI on every push/PR rather than only when a release tag is cut. WiX authoring
+  # errors are otherwise invisible until release time, which is the worst moment to find them —
+  # and WiX cannot validate this file off Windows, so CI is the only place it gets checked.
+  # Separate job so it runs alongside build-and-test instead of adding to its wall-clock time.
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish WinClipboard.App (self-contained win-x64)
+        run: >
+          dotnet publish src/WinClipboard.App/WinClipboard.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish
+
+      - name: Install WiX
+        run: dotnet tool install --global wix --version 5.*
+
+      - name: Build MSI installer
+        shell: pwsh
+        run: |
+          # A placeholder version is fine here: this job only proves the authoring builds.
+          # release-build.yml derives the real version from the tag.
+          wix build installer\WinClipboard.wxs -d Version=0.0.0.0 -d PublishDir=publish -arch x64 -o WinClipboard-win-x64.msi
+          if (-not (Test-Path WinClipboard-win-x64.msi)) { throw "MSI was not produced" }
+          Get-Item WinClipboard-win-x64.msi | ForEach-Object { Write-Host "$($_.Name) $($_.Length) bytes" }
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-msi
+          path: WinClipboard-win-x64.msi
+          if-no-files-found: error
