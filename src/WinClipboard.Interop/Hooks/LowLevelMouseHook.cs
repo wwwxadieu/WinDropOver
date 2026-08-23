@@ -39,6 +39,9 @@ public sealed class LowLevelMouseHook : IDisposable
 
     public event EventHandler<MouseHookEventArgs>? MouseEvent;
 
+    /// <summary>Raised when a subscriber threw inside the callback. Reported rather than rethrown, because rethrowing here kills the process.</summary>
+    public event EventHandler<Exception>? CallbackFailed;
+
     /// <summary>
     /// Environment.TickCount64 at the last callback, or 0 if there has not been one. Windows
     /// removes a hook that overruns its timeout without saying so, and offers no way to ask
@@ -63,6 +66,10 @@ public sealed class LowLevelMouseHook : IDisposable
         using var currentModule = System.Diagnostics.Process.GetCurrentProcess().MainModule!;
         var moduleHandle = NativeMethods.GetModuleHandle(currentModule.ModuleName);
         _hookHandle = NativeMethods.SetWindowsHookEx(NativeConstants.WH_MOUSE_LL, _hookProc, moduleHandle, 0);
+        // Count "alive" from installation, not from the first callback: the watchdog compares
+        // this against Environment.TickCount64, which starts at the machine's uptime, so leaving
+        // it at zero made every freshly installed hook look like it had been silent for days.
+        LastCallbackTicks = Environment.TickCount64;
         if (_hookHandle == IntPtr.Zero)
         {
             throw new InvalidOperationException($"SetWindowsHookEx(WH_MOUSE_LL) failed: {Marshal.GetLastWin32Error()}");
@@ -90,16 +97,29 @@ public sealed class LowLevelMouseHook : IDisposable
         var handler = MouseEvent;
         if (nCode >= 0 && handler is not null)
         {
-            var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
-            var message = (int)wParam;
-            handler(this, new MouseHookEventArgs
+            // Subscribers run here, inside the native callback. An exception escaping this frame
+            // does not become an ordinary unhandled exception — it unwinds through native code,
+            // which the runtime treats as fatal, so the process dies with no handler run and
+            // nothing logged. Swallow it: dropping one mouse sample is always better than
+            // killing the application, and CallNextHookEx below must run either way or every
+            // other hook in the system stops seeing input.
+            try
             {
-                X = data.pt.X,
-                Y = data.pt.Y,
-                IsLeftButtonDown = message == NativeConstants.WM_LBUTTONDOWN,
-                IsLeftButtonUp = message == NativeConstants.WM_LBUTTONUP,
-                TimestampMs = data.time
-            });
+                var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                var message = (int)wParam;
+                handler(this, new MouseHookEventArgs
+                {
+                    X = data.pt.X,
+                    Y = data.pt.Y,
+                    IsLeftButtonDown = message == NativeConstants.WM_LBUTTONDOWN,
+                    IsLeftButtonUp = message == NativeConstants.WM_LBUTTONUP,
+                    TimestampMs = data.time
+                });
+            }
+            catch (Exception ex)
+            {
+                CallbackFailed?.Invoke(this, ex);
+            }
         }
         return NativeMethods.CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
