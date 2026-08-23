@@ -83,9 +83,14 @@ jobs:
       - name: Install WiX
         shell: pwsh
         run: |
-          dotnet tool install --global wix --version 5.*
+          # One variable for both, because a WiX extension has to match the toolset it runs
+          # under. Pinned rather than a 5.* range: `wix extension add` rejects a wildcard
+          # outright ("Invalid extension version"), and resolving the range separately for the
+          # tool and the extension is exactly how the two drift apart. Bump this deliberately.
+          $wixVersion = '5.0.2'
+          dotnet tool install --global wix --version $wixVersion
           # The UI extension supplies the WixUI_InstallDir dialog set the installer references.
-          wix extension add --global WixToolset.UI.wixext/5.*
+          wix extension add --global WixToolset.UI.wixext/$wixVersion
 
       - name: Build MSI installer
         shell: pwsh
