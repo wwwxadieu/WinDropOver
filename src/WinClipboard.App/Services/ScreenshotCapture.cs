@@ -97,6 +97,10 @@ internal static class ScreenshotCapture
             {
                 Log($"DISPATCHER UNHANDLED: {e.Exception}");
                 FlushLog();
+                // Only ever set in screenshot mode: swallowing it keeps the harness alive so the
+                // remaining windows still get captured and the run ends with a real report
+                // instead of the process vanishing. The per-window try/catch records the failure.
+                e.Handled = true;
             };
 
             await CaptureAllAsync(app, outputDirectory);
