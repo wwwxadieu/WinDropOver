@@ -70,13 +70,21 @@ jobs:
       - name: Build MSI installer
         shell: pwsh
         run: |
+          # Absolute path: WiX resolves Files/@Include relative to the .wxs file, so a bare
+          # "publish" resolves to installer\publish and silently harvests nothing.
+          $publishDir = (Resolve-Path publish).Path
           wix build installer\WinClipboard.wxs `
             -d Version=${{ steps.tag.outputs.msiVersion }} `
-            -d PublishDir=publish `
+            -d PublishDir="$publishDir" `
             -arch x64 `
             -o WinClipboard-win-x64.msi
           if (-not (Test-Path WinClipboard-win-x64.msi)) { throw "MSI was not produced" }
-          Get-Item WinClipboard-win-x64.msi | ForEach-Object { Write-Host "$($_.Name) $($_.Length) bytes" }
+          $msi = Get-Item WinClipboard-win-x64.msi
+          Write-Host "$($msi.Name) $($msi.Length) bytes"
+          # Never ship an MSI that installs nothing: an empty one is ~36 KB, a real one tens of MB.
+          if ($msi.Length -lt 10MB) {
+            throw "MSI is only $($msi.Length) bytes - the publish output was not harvested into it"
+          }
 
       - name: Upload to release
         env:

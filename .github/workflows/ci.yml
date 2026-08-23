@@ -85,11 +85,21 @@ jobs:
       - name: Build MSI installer
         shell: pwsh
         run: |
+          # PublishDir must be absolute: WiX resolves Files/@Include relative to the .wxs file,
+          # so a bare "publish" became installer\publish, matched nothing, and still built
+          # successfully — an MSI whose Start Menu shortcut pointed at a file it never installed.
+          $publishDir = (Resolve-Path publish).Path
           # A placeholder version is fine here: this job only proves the authoring builds.
           # release-build.yml derives the real version from the tag.
-          wix build installer\WinClipboard.wxs -d Version=0.0.0.0 -d PublishDir=publish -arch x64 -o WinClipboard-win-x64.msi
+          wix build installer\WinClipboard.wxs -d Version=0.0.0.0 -d PublishDir="$publishDir" -arch x64 -o WinClipboard-win-x64.msi
           if (-not (Test-Path WinClipboard-win-x64.msi)) { throw "MSI was not produced" }
-          Get-Item WinClipboard-win-x64.msi | ForEach-Object { Write-Host "$($_.Name) $($_.Length) bytes" }
+          $msi = Get-Item WinClipboard-win-x64.msi
+          Write-Host "$($msi.Name) $($msi.Length) bytes"
+          # Guards against the harvest silently matching nothing again: a self-contained
+          # single-file publish is tens of MB, while an empty MSI is around 36 KB.
+          if ($msi.Length -lt 10MB) {
+            throw "MSI is only $($msi.Length) bytes - the publish output was not harvested into it"
+          }
 
       - name: Upload MSI
         uses: actions/upload-artifact@v4
