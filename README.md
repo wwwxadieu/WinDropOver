@@ -18,8 +18,13 @@ nên phần giao diện chỉ được compile lần đầu khi CI chạy. Hai l
 xung đột namespace WinForms/WPF, và SQLite connection pool giữ file khiến test teardown fail trên
 Windows. Từ đó tới nay CI xanh liên tục.
 
-**Điều còn lại chưa được xác nhận: chưa ai chạy thử app trong thực tế.** Build được không có
-nghĩa là mọi hành vi runtime đều đúng — xem mục giới hạn bên dưới.
+**Đã có người chạy thật.** Việc đó phát hiện một loạt lỗi mà compiler và unit test không thể
+thấy: app làm treo con trỏ toàn máy rồi tự thoát khi cầm file, không cử chỉ nào mở được shelf,
+và cú drop nhận được nhưng đọc rỗng. Tất cả đã sửa, và cơ chế shelf được xác nhận hoạt động từ
+`v0.1.6-alpha`.
+
+Phần giao diện mới nhất — thẻ shelf, lưới thumbnail, ẩn-khi-click-ra-ngoài — thì **chưa**: nó
+mới chỉ qua compile và ảnh chụp CI. Xem mục giới hạn bên dưới.
 
 ## Cài đặt
 
