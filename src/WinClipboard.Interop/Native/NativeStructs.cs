@@ -99,3 +99,24 @@ internal struct MONITORINFO
     public RECT rcWork;
     public uint dwFlags;
 }
+
+/// <summary>
+/// BITMAPINFO with the colour table omitted: GetDIBits only writes one for bit depths of 8 or
+/// less, and every call here asks for 32-bit BI_RGB, where the table is unused.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct BITMAPINFO
+{
+    public uint biSize;
+    public int biWidth;
+    /// <summary>Negative for a top-down bitmap — the row order WPF's BitmapSource expects, which saves flipping every row by hand.</summary>
+    public int biHeight;
+    public ushort biPlanes;
+    public ushort biBitCount;
+    public uint biCompression;
+    public uint biSizeImage;
+    public int biXPelsPerMeter;
+    public int biYPelsPerMeter;
+    public uint biClrUsed;
+    public uint biClrImportant;
+}

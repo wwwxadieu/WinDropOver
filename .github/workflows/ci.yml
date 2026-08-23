@@ -98,11 +98,15 @@ jobs:
           # so a bare "publish" became installer\publish, matched nothing, and still built
           # successfully — an MSI whose Start Menu shortcut pointed at a file it never installed.
           $publishDir = (Resolve-Path publish).Path
+          # Absolute for a different reason: Icon/@SourceFile resolves against the working
+          # directory, not the .wxs, so the relative path in the authoring walked out of the repo.
+          $iconFile = (Resolve-Path assets\WinClipboard.ico).Path
           # A placeholder version is fine here: this job only proves the authoring builds.
           # release-build.yml derives the real version from the tag.
           wix build installer\WinClipboard.wxs `
             -d Version=0.0.0.0 `
             -d PublishDir="$publishDir" `
+            -d IconFile="$iconFile" `
             -ext WixToolset.UI.wixext `
             -arch x64 `
             -o WinClipboard-win-x64.msi

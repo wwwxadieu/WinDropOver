@@ -98,9 +98,13 @@ jobs:
           # Absolute path: WiX resolves Files/@Include relative to the .wxs file, so a bare
           # "publish" resolves to installer\publish and silently harvests nothing.
           $publishDir = (Resolve-Path publish).Path
+          # Absolute for a different reason: Icon/@SourceFile resolves against the working
+          # directory, not the .wxs, so the relative path in the authoring walked out of the repo.
+          $iconFile = (Resolve-Path assets\WinClipboard.ico).Path
           wix build installer\WinClipboard.wxs `
             -d Version=${{ steps.tag.outputs.msiVersion }} `
             -d PublishDir="$publishDir" `
+            -d IconFile="$iconFile" `
             -ext WixToolset.UI.wixext `
             -arch x64 `
             -o WinClipboard-win-x64.msi

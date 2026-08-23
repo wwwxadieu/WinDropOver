@@ -36,7 +36,7 @@ public sealed class TrayIconService : IDisposable
 
         _notifyIcon = new NotifyIcon
         {
-            Icon = CreateFallbackIcon(),
+            Icon = LoadAppIcon(),
             Text = "WinClipboard",
             ContextMenuStrip = menu,
             Visible = true
@@ -49,6 +49,29 @@ public sealed class TrayIconService : IDisposable
     /// a real app icon under Assets/ and point NotifyIcon.Icon at it via
     /// new Icon("Assets/app.ico") once branding (plan section 7) is decided.
     /// </summary>
+    /// <summary>
+    /// The application's own icon, from the resource compiled into the executable.
+    ///
+    /// Falls back to drawing a plain disc if that lookup fails, because a tray icon is how this
+    /// application is reached at all — quitting it, opening settings, opening the shelf — and an
+    /// exception here would leave a running process with no way to get at any of that.
+    /// </summary>
+    private static Icon LoadAppIcon()
+    {
+        try
+        {
+            var uri = new Uri("pack://application:,,,/Assets/WinClipboard.ico", UriKind.Absolute);
+            using var stream = System.Windows.Application.GetResourceStream(uri)!.Stream;
+            // 32px: the size Windows asks for in the notification area at 200% scaling, and the
+            // .ico carries an exact match so nothing is resampled.
+            return new Icon(stream, 32, 32);
+        }
+        catch
+        {
+            return CreateFallbackIcon();
+        }
+    }
+
     private static Icon CreateFallbackIcon()
     {
         using var bitmap = new Bitmap(32, 32);

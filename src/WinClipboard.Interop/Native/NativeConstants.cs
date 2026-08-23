@@ -72,4 +72,11 @@ internal static class NativeConstants
     public const int VK_RCONTROL = 0xA3;
     public const int VK_LMENU = 0xA4; // Alt
     public const int VK_RMENU = 0xA5;
+
+    // BitBlt / GetDIBits
+    public const uint SRCCOPY = 0x00CC0020;
+    /// <summary>Includes layered windows in the copy, which is most of what floats above the desktop these days.</summary>
+    public const uint CAPTUREBLT = 0x40000000;
+    public const uint DIB_RGB_COLORS = 0;
+    public const uint BI_RGB = 0;
 }
