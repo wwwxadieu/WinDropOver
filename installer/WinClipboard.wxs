@@ -14,8 +14,15 @@
   extension was added: it brings WixUI's en-us localization, which pins the database codepage
   to 1252 and turns what had been tolerated into WIX0311 build errors.
 
-  Version and publish directory are passed in by the release workflow:
-    wix build installer\WinClipboard.wxs -d Version=0.1.3.0 -d PublishDir=publish -ext WixToolset.UI.wixext
+  Version, publish directory and icon file are passed in by the workflows. Both paths have to
+  be absolute, and for different reasons: Files/@Include resolves against the .wxs file, so a
+  bare "publish" becomes installer\publish and silently harvests nothing, while Icon/@SourceFile
+  resolves against the working directory, so "..\assets\..." walks out of the repository
+  entirely. Passing both in absolute removes the question of which base applies where.
+
+    wix build installer\WinClipboard.wxs -d Version=0.1.3.0 `
+      -d PublishDir=C:\repo\publish -d IconFile=C:\repo\assets\WinClipboard.ico `
+      -ext WixToolset.UI.wixext
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
@@ -43,7 +50,7 @@
     </Feature>
 
     <!-- The icon Apps & features shows next to the entry, and the Start Menu shortcut uses. -->
-    <Icon Id="AppIcon.ico" SourceFile="..\assets\WinClipboard.ico" />
+    <Icon Id="AppIcon.ico" SourceFile="$(var.IconFile)" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Property Id="ARPNOREPAIR" Value="1" />
 
