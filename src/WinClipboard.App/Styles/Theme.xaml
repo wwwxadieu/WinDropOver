@@ -26,25 +26,33 @@
 
     <!-- ============================ Icons ============================ -->
     <!--
-        Vector paths rather than emoji glyphs. Emoji render at whatever size and weight the
-        installed font decides — the pencil and pin came out visibly mismatched next to the
-        multiplication sign — and they cannot take a hover colour.
-        All drawn on a nominal 24x24 grid and scaled by the button template.
+        Vector paths rather than emoji glyphs: emoji render at whatever size and weight the
+        installed font decides, and cannot take a hover colour.
+
+        Drawn to the convention the well-known stroke icon sets use — a 24x24 grid, 2-unit
+        stroke, round caps and joins, shapes spanning ~12 units — and rendered through a fixed
+        24x24 Canvas inside a Viewbox (see the button templates) so one scale factor applies to
+        all of them. Following a single convention is most of what makes a set look deliberate
+        rather than assembled.
+
+        Two rules learned the hard way here:
+        * Spans must match across icons. The X was 14 units against 9-unit chevrons, so it
+          shouted while they looked timid at identical button sizes.
+        * An outlined shape needs an interior wider than twice the stroke, or the outline closes
+          over itself. The pencil's body was 3 units against a 2.1 stroke and rendered as a lumpy
+          blob rather than a pencil.
     -->
-    <!--
-        Coordinates matter: the icons are rendered inside a fixed 24x24 Canvas (see the button
-        templates) rather than each being stretched to fill its button. Stretching meant every
-        glyph was scaled by its own bounding box, so the square X filled the whole button while
-        the tall, narrow pin shrank to a sliver. Drawn against a shared grid they keep the
-        relative sizes they were designed with, so keep new icons inside roughly 7..17.
-    -->
-    <PathGeometry x:Key="IconClose" Figures="M 7.5,7.5 L 16.5,16.5 M 16.5,7.5 L 7.5,16.5" />
-    <PathGeometry x:Key="IconPin" Figures="M 10,5 L 14,5 L 13.2,10 L 15.6,12.2 L 12.4,12.2 L 12.4,19 L 11.6,19 L 11.6,12.2 L 8.4,12.2 L 10.8,10 Z" />
-    <PathGeometry x:Key="IconChevronUp" Figures="M 7.5,14 L 12,9.5 L 16.5,14" />
-    <PathGeometry x:Key="IconChevronDown" Figures="M 7.5,10 L 12,14.5 L 16.5,10" />
-    <PathGeometry x:Key="IconPencil" Figures="M 6.5,17.5 L 7,14 L 14.5,6.5 L 17.5,9.5 L 10,17 Z M 13,8 L 16,11" />
-    <PathGeometry x:Key="IconPlus" Figures="M 12,7 L 12,17 M 7,12 L 17,12" />
-    <PathGeometry x:Key="IconCheck" Figures="M 6.5,12.5 L 10,16 L 17.5,8" />
+    <PathGeometry x:Key="IconClose" Figures="M 18,6 L 6,18 M 6,6 L 18,18" />
+    <PathGeometry x:Key="IconChevronUp" Figures="M 18,15 L 12,9 L 6,15" />
+    <PathGeometry x:Key="IconChevronDown" Figures="M 6,9 L 12,15 L 18,9" />
+    <PathGeometry x:Key="IconPlus" Figures="M 6,12 L 18,12 M 12,6 L 12,18" />
+    <!-- Alone inside the checkbox, so it is not competing with a neighbour for size. -->
+    <PathGeometry x:Key="IconCheck" Figures="M 19,7 L 9.5,16.5 L 5,12" />
+    <!-- Eraser edge, two body sides, sharpened tip, then the ferrule line across.
+         The body is 5.4 units wide so the outline does not close over itself. -->
+    <PathGeometry x:Key="IconPencil" Figures="M 14.2,6 L 18,9.8 L 11,16.8 L 6.3,17.7 L 7.2,13 Z M 12.8,7.4 L 16.6,11.2" />
+    <!-- Push pin: cap, body, flared base, needle. Outlined at rest, filled once pinned. -->
+    <PathGeometry x:Key="IconPin" Figures="M 9,5 L 15,5 L 15,11 L 17.5,15 L 6.5,15 L 9,11 Z M 12,15 L 12,19" />
 
     <!-- ============================ Surfaces ============================ -->
 
@@ -174,12 +182,12 @@
                     <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="6">
                         <!-- Fixed 24x24 Canvas inside the Viewbox: every icon is scaled by the
                              same factor, so they keep their designed relative sizes. -->
-                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Canvas Width="24" Height="24">
                                 <Path x:Name="Icon"
                                       Data="{TemplateBinding Tag}"
                                       Stroke="{TemplateBinding Foreground}"
-                                      StrokeThickness="2.1"
+                                      StrokeThickness="2"
                                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
                             </Canvas>
                         </Viewbox>
@@ -206,12 +214,12 @@
                     <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="6">
                         <!-- Fixed 24x24 Canvas inside the Viewbox: every icon is scaled by the
                              same factor, so they keep their designed relative sizes. -->
-                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Canvas Width="24" Height="24">
                                 <Path x:Name="Icon"
                                       Data="{TemplateBinding Tag}"
                                       Stroke="{TemplateBinding Foreground}"
-                                      StrokeThickness="2.1"
+                                      StrokeThickness="2"
                                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
                             </Canvas>
                         </Viewbox>
@@ -238,18 +246,25 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="6">
-                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Viewbox Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Canvas Width="24" Height="24">
-                                <Path x:Name="Icon" Data="{TemplateBinding Tag}" Fill="{TemplateBinding Foreground}" />
+                                <!-- Stroked like every other icon, and additionally filled once
+                                     checked: outline vs solid says "pinned" at a glance, which
+                                     colour alone does not. -->
+                                <Path x:Name="Icon" Data="{TemplateBinding Tag}"
+                                      Stroke="{TemplateBinding Foreground}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      Fill="Transparent" />
                             </Canvas>
                         </Viewbox>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource ControlHoverBrush}" />
-                            <Setter TargetName="Icon" Property="Fill" Value="{StaticResource TextPrimaryBrush}" />
+                            <Setter TargetName="Icon" Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Icon" Property="Stroke" Value="{StaticResource AccentBrush}" />
                             <Setter TargetName="Icon" Property="Fill" Value="{StaticResource AccentBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -494,7 +509,7 @@
                                  Margin="0,0,9,0" IsHitTestVisible="False">
                             <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconChevronDown}"
-                                      Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="2.1"
+                                      Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="2"
                                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
                             </Canvas>
                         </Viewbox>
