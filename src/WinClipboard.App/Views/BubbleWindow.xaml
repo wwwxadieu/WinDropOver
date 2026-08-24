@@ -14,6 +14,7 @@
         SourceInitialized="OnSourceInitialized"
         DragEnter="OnDragEnter"
         DragOver="OnDragOver"
+        PreviewDragOver="OnPreviewDragOver"
         DragLeave="OnDragLeave"
         Drop="OnDrop"
         Deactivated="OnDeactivated">
@@ -306,8 +307,9 @@
                 otherwise fold it away mid-aim.
             -->
             <Border x:Name="ActionOverlay" Grid.Row="1" Grid.RowSpan="3" Visibility="Collapsed"
-                    Background="#E6101014" CornerRadius="12" Margin="0,0,0,2" AllowDrop="True"
-                    DragOver="OnActionDragOver" DragLeave="OnActionOverlayDragLeave">
+                    Background="{StaticResource ScrimBrush}" BorderBrush="{StaticResource SurfaceBorderBrush}"
+                    BorderThickness="1" CornerRadius="12" Margin="0,0,0,2" AllowDrop="True"
+                    DragOver="OnActionDragOver">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -363,7 +365,8 @@
                 undo is red and says so on its own line.
             -->
             <Border x:Name="DeleteConfirm" Grid.Row="1" Grid.RowSpan="3" Visibility="Collapsed"
-                    Background="#F2101014" CornerRadius="12" Margin="0,0,0,2">
+                    Background="{StaticResource ScrimBrush}" BorderBrush="{StaticResource SurfaceBorderBrush}"
+                    BorderThickness="1" CornerRadius="12" Margin="0,0,0,2">
                 <StackPanel VerticalAlignment="Center" Margin="18,0">
                     <Viewbox Width="30" Height="30" HorizontalAlignment="Center">
                         <Canvas Width="24" Height="24">
