@@ -211,6 +211,8 @@ public partial class BubbleWindow : Window
         }
         _closing = true;
         CollapseActions();
+        // Going away is an answer too, and the answer is no.
+        AnswerDelete(null);
         // The whole window, not just the card: its background is Transparent, which in WPF is
         // still a surface that swallows clicks.
         IsHitTestVisible = false;
@@ -599,6 +601,15 @@ public partial class BubbleWindow : Window
         _showDetails = true;
         return ReloadAsync();
     }
+
+    /// <summary>
+    /// Opens the action panel and the delete question without a drag, for the screenshot harness.
+    /// Both are states you can only otherwise reach by holding a file over the card, which no CI
+    /// run can do — so without these they would ship unrendered every time.
+    /// </summary>
+    internal void ShowActionsForCapture() => ExpandActions();
+
+    internal void ShowDeleteConfirmForCapture(int itemCount) => _ = AskHowToDeleteAsync(itemCount);
 
     private async void OnToggleDetailsClicked(object sender, RoutedEventArgs e)
     {
@@ -1018,6 +1029,19 @@ public partial class BubbleWindow : Window
             return;
         }
 
+        // The delete tile arrives here carrying the recoverable action as a placeholder; which
+        // delete actually runs is the answer to the question below, and "no answer" is a valid
+        // one that ends this here.
+        if (IsDelete(action))
+        {
+            var chosen = await AskHowToDeleteAsync(items.Count);
+            if (chosen is null)
+            {
+                return;
+            }
+            action = chosen.Value;
+        }
+
         var targetPath = await ResolveTargetPathAsync(action);
         if (targetPath is null && NeedsTargetFolder(action))
         {
@@ -1026,7 +1050,9 @@ public partial class BubbleWindow : Window
 
         var result = await _app.QuickActions.ExecuteOnItemsAsync(items, action, targetPath);
 
-        if (action == QuickActionType.MoveToFolder)
+        // A file that has been deleted is not on the shelf either — the row would point at
+        // nothing, which is the same reason a moved file comes off.
+        if (action == QuickActionType.MoveToFolder || IsDelete(action))
         {
             foreach (var itemResult in result.ItemResults.Where(r => r.Succeeded))
             {
@@ -1037,6 +1063,57 @@ public partial class BubbleWindow : Window
         await ReloadAsync();
         RestartAutoHideTimer();
     }
+
+    private static bool IsDelete(QuickActionType action) =>
+        action is QuickActionType.DeleteToRecycleBin or QuickActionType.DeletePermanently;
+
+    /// <summary>The pending delete question, completed by whichever of the three buttons is pressed.</summary>
+    private TaskCompletionSource<QuickActionType?>? _deleteChoice;
+
+    /// <summary>
+    /// Asks whether to recycle or destroy, and waits for the answer.
+    ///
+    /// In the card rather than a message box: this question arrives at the end of a drag, over
+    /// the user's own work, and a system dialog appearing somewhere else on screen is both uglier
+    /// and easier to answer without reading. Cancelling — clicking Huỷ, or the shelf going away —
+    /// is a null answer, and a null answer deletes nothing.
+    /// </summary>
+    private Task<QuickActionType?> AskHowToDeleteAsync(int itemCount)
+    {
+        _deleteChoice?.TrySetResult(null);
+
+        DeleteConfirmText.Text = itemCount == 1
+            ? "Xoá tệp này khỏi ổ đĩa?"
+            : $"Xoá {itemCount} tệp khỏi ổ đĩa?";
+        DeleteConfirm.Visibility = Visibility.Visible;
+        CollapseActions();
+
+        // The card must not put itself away while it is holding a question.
+        _autoHideTimer.Stop();
+        _suppressDeactivateHide = true;
+
+        _deleteChoice = new TaskCompletionSource<QuickActionType?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        return _deleteChoice.Task;
+    }
+
+    private void AnswerDelete(QuickActionType? answer)
+    {
+        DeleteConfirm.Visibility = Visibility.Collapsed;
+        _suppressDeactivateHide = false;
+        RestartAutoHideTimer();
+
+        var pending = _deleteChoice;
+        _deleteChoice = null;
+        pending?.TrySetResult(answer);
+    }
+
+    private void OnDeleteToRecycleBinClicked(object sender, RoutedEventArgs e) =>
+        AnswerDelete(QuickActionType.DeleteToRecycleBin);
+
+    private void OnDeletePermanentlyClicked(object sender, RoutedEventArgs e) =>
+        AnswerDelete(QuickActionType.DeletePermanently);
+
+    private void OnDeleteCancelClicked(object sender, RoutedEventArgs e) => AnswerDelete(null);
 
     private async Task<string?> ResolveTargetPathAsync(QuickActionType action)
     {

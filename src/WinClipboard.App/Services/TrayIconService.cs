@@ -34,6 +34,8 @@ public sealed class TrayIconService : IDisposable
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(exitItem);
 
+        TrayMenuTheme.Apply(menu);
+
         _notifyIcon = new NotifyIcon
         {
             Icon = LoadAppIcon(),

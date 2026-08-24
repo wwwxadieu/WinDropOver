@@ -6,6 +6,7 @@ public sealed class FakeShellLauncher : IShellLauncher
 {
     public List<string> OpenWithCalls { get; } = [];
     public List<IReadOnlyList<string>> ShareCalls { get; } = [];
+    public List<string> RecycleCalls { get; } = [];
 
     public Task OpenWithDialogAsync(string filePath, CancellationToken ct = default)
     {
@@ -16,6 +17,12 @@ public sealed class FakeShellLauncher : IShellLauncher
     public Task ShareAsync(IReadOnlyList<string> filePaths, CancellationToken ct = default)
     {
         ShareCalls.Add(filePaths);
+        return Task.CompletedTask;
+    }
+
+    public Task RecycleAsync(string path, CancellationToken ct = default)
+    {
+        RecycleCalls.Add(path);
         return Task.CompletedTask;
     }
 }

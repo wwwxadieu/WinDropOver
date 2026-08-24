@@ -144,3 +144,21 @@ internal struct SHFILEINFO
     [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
     public string szTypeName;
 }
+
+/// <summary>
+/// SHFILEOPSTRUCT. CharSet.Unicode is load-bearing: the ANSI entry point truncates any path the
+/// user's language can spell but Windows-1252 cannot, which for this app's users is most of them.
+/// </summary>
+[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 1)]
+internal struct SHFILEOPSTRUCT
+{
+    public IntPtr hwnd;
+    public uint wFunc;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pFrom;
+    [MarshalAs(UnmanagedType.LPWStr)] public string? pTo;
+    public ushort fFlags;
+    [MarshalAs(UnmanagedType.Bool)] public bool fAnyOperationsAborted;
+    public IntPtr hNameMappings;
+    [MarshalAs(UnmanagedType.LPWStr)] public string? lpszProgressTitle;
+}
+

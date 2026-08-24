@@ -201,6 +201,30 @@ internal static class ScreenshotCapture
             return bubble;
         });
 
+        await StepAsync("bubble (actions open)", "03-actions.png", async () =>
+        {
+            if (bubble is null)
+            {
+                throw new InvalidOperationException("Bubble window failed, so the actions cannot be opened on it.");
+            }
+            var shelves = await app.ShelfSession.GetShelvesAsync();
+            var workShelf = shelves.First(sh => sh.Name == "Công việc");
+            await bubble.ShowShelfAsync(workShelf.Id, 600, 400);
+            bubble.ShowActionsForCapture();
+            return bubble;
+        });
+
+        await StepAsync("bubble (delete confirm)", "03b-delete-confirm.png", async () =>
+        {
+            if (bubble is null)
+            {
+                throw new InvalidOperationException("Bubble window failed, so the delete question cannot be shown on it.");
+            }
+            await bubble.ReloadAsync();
+            bubble.ShowDeleteConfirmForCapture(3);
+            return bubble;
+        });
+
         await StepAsync("settings", "04-settings.png", () =>
         {
             var window = new SettingsWindow(app);
