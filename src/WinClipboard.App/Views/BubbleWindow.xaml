@@ -316,7 +316,13 @@
                     <TextBlock Grid.Row="0" Text="Thả vào một ô để chạy" Margin="0,12,0,4"
                                HorizontalAlignment="Center" FontSize="11"
                                Foreground="{StaticResource TextMutedBrush}" />
-                    <UniformGrid Grid.Row="1" Rows="1" Margin="8,0,8,12">
+                    <!--
+                        Two by two rather than four across. Four tiles in a 300px row leaves each
+                        one 67px wide, which is a worse target than the flat row this replaced —
+                        and the whole reason for opening them is to be easy to hit while holding a
+                        file. Squared up they are more than twice as wide.
+                    -->
+                    <UniformGrid Grid.Row="1" Rows="2" Columns="2" Margin="8,0,8,12">
                         <Button Content="Chuyển" Tag="{StaticResource IconMove}"
                                 ToolTip="Thả vào đây để chuyển, hoặc bấm để chuyển cả shelf"
                                 CommandParameter="{x:Static models:QuickActionType.MoveToFolder}"

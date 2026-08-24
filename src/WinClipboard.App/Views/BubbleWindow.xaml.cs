@@ -690,11 +690,35 @@ public partial class BubbleWindow : Window
     private void OnDragLeave(object sender, DragEventArgs e)
     {
         RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
-        // The drag has left the card altogether; nothing is being aimed at any more.
-        if (!IsMouseOver)
+        // Only when the drag has left the card altogether — see StillInside for why asking the
+        // window whether the mouse is over it does not answer that question during a drag.
+        if (!StillInside(e, this))
         {
             CollapseActions();
         }
+    }
+
+    /// <summary>
+    /// Whether the drag pointer is still within an element, asked of the event rather than of the
+    /// element.
+    ///
+    /// IsMouseOver is the obvious thing to reach for and it is wrong here: during an OLE drag the
+    /// mouse is captured by the drag loop, so WPF's mouse-over tracking does not follow the
+    /// pointer and the answer is false even while the pointer is squarely inside the window.
+    ///
+    /// It is also not enough to trust DragLeave itself, because drag events bubble: crossing from
+    /// one child to the next raises DragLeave on the child the pointer left, and that reaches
+    /// every ancestor as though they had been left too.
+    ///
+    /// Together those two produced the flicker — the toggle's own DragLeave, fired the instant the
+    /// panel opened over it, reached the window, which collapsed the panel, which put the toggle
+    /// back under the pointer, which opened it again, once per mouse move.
+    /// </summary>
+    private static bool StillInside(DragEventArgs e, FrameworkElement element)
+    {
+        var point = e.GetPosition(element);
+        return point.X >= 0 && point.Y >= 0
+               && point.X <= element.ActualWidth && point.Y <= element.ActualHeight;
     }
 
     private static void SetDropEffect(DragEventArgs e)
@@ -928,11 +952,7 @@ public partial class BubbleWindow : Window
     /// </summary>
     private void OnActionOverlayDragLeave(object sender, DragEventArgs e)
     {
-        var point = e.GetPosition(ActionOverlay);
-        var stillInside = point.X >= 0 && point.Y >= 0
-                          && point.X <= ActionOverlay.ActualWidth
-                          && point.Y <= ActionOverlay.ActualHeight;
-        if (!stillInside)
+        if (!StillInside(e, ActionOverlay))
         {
             CollapseActions();
         }
@@ -953,6 +973,13 @@ public partial class BubbleWindow : Window
 
     private void ExpandActions()
     {
+        // Already open: opening again would restart the idle timer on every mouse move, and a
+        // panel that is repeatedly told to appear is how the last flicker started.
+        if (ActionOverlay.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
         ActionOverlay.Visibility = Visibility.Visible;
         ActionToggle.Visibility = Visibility.Hidden;
         RestartAutoHideTimer();
