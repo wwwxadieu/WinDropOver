@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using Application = System.Windows.Application;
 
 namespace WinClipboard.App.Services;
 
@@ -12,20 +13,26 @@ namespace WinClipboard.App.Services;
 /// pushed away from an edge that exists for nothing. Next to a dark glass card with rounded
 /// corners it reads as a piece of a different program.
 ///
-/// WinForms will not restyle any of that on its own, but every part of it is a renderer decision,
-/// and a renderer is replaceable. This one paints a dark rounded surface, drops the gutter, and
-/// gives the highlight the app's own accent.
+/// Every colour here is read from the application's own resource dictionary rather than typed in.
+/// The first version of this file did type them in, and they were all slightly wrong — the
+/// surface two steps off the card's, the border darker and bluer than the card's — because
+/// hand-copied hex has no way of staying in step with a palette that moves. Reading the brushes
+/// means the menu cannot drift from the card again.
 /// </summary>
 internal static class TrayMenuTheme
 {
-    private static readonly Color Surface = Color.FromArgb(30, 30, 34);
-    private static readonly Color SurfaceBorder = Color.FromArgb(64, 64, 70);
-    private static readonly Color Highlight = Color.FromArgb(59, 130, 246);
-    private static readonly Color TextPrimary = Color.FromArgb(242, 242, 242);
-    private static readonly Color Separator = Color.FromArgb(58, 58, 64);
+    /// <summary>Matches the shelf card, which is the other thing in this app that floats over the desktop.</summary>
+    private const int PopupCornerRadius = 12;
 
-    /// <summary>Rounded corners on the popup itself, so the dark fill does not sit inside a square grey frame.</summary>
-    private const int CornerRadius = 8;
+    /// <summary>The radius every small control in Theme.xaml uses.</summary>
+    private const int ItemCornerRadius = 6;
+
+    private static readonly Color Surface = Opaque("GlassBrush", Color.FromArgb(28, 28, 32));
+    private static readonly Color SurfaceBorder = Over("GlassBorderBrush", Surface, Color.FromArgb(87, 87, 89));
+    private static readonly Color Separator = Over("SurfaceBorderBrush", Surface, Color.FromArgb(61, 61, 64));
+    private static readonly Color Highlight = Opaque("AccentBrush", Color.FromArgb(59, 130, 246));
+    private static readonly Color TextPrimary = Opaque("TextPrimaryBrush", Color.FromArgb(242, 242, 242));
+    private static readonly Color TextMuted = Over("TextMutedBrush", Surface, Color.FromArgb(122, 122, 125));
 
     public static void Apply(ContextMenuStrip menu)
     {
@@ -35,15 +42,18 @@ internal static class TrayMenuTheme
         menu.ShowImageMargin = false;
         menu.DropShadowEnabled = true;
         menu.Padding = new Padding(4);
+        // 9pt is the app's 12 device-independent units, which is what its own list rows use.
         menu.Font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point);
 
         foreach (ToolStripItem item in menu.Items)
         {
-            if (item is ToolStripMenuItem entry)
+            if (item is not ToolStripMenuItem entry)
             {
-                entry.Padding = new Padding(6, 4, 6, 4);
-                entry.ForeColor = TextPrimary;
+                continue;
             }
+            entry.Padding = new Padding(8, 5, 8, 5);
+            entry.ForeColor = TextPrimary;
+            MoveShortcutOutOfTheLabel(entry);
         }
 
         // The region has to be reset every time the popup opens: WinForms rebuilds the handle
@@ -51,19 +61,32 @@ internal static class TrayMenuTheme
         menu.Opened += (_, _) => RoundCorners(menu);
     }
 
+    /// <summary>
+    /// "Mở lịch sử clipboard\tCtrl+Shift+V" was one string with a tab in it, which renders as a
+    /// gap of whatever width the tab stop happens to fall on. Handing the shortcut to WinForms as
+    /// a shortcut instead gets it right-aligned in its own column — and lets the renderer draw it
+    /// muted, the way every other secondary line in this app is drawn.
+    /// </summary>
+    private static void MoveShortcutOutOfTheLabel(ToolStripMenuItem entry)
+    {
+        var tab = entry.Text?.IndexOf('\t') ?? -1;
+        if (tab < 0)
+        {
+            return;
+        }
+
+        var label = entry.Text![..tab];
+        var shortcut = entry.Text[(tab + 1)..];
+        entry.Text = label;
+        entry.ShortcutKeyDisplayString = shortcut;
+        entry.ShowShortcutKeys = true;
+    }
+
     private static void RoundCorners(ContextMenuStrip menu)
     {
         try
         {
-            using var path = new GraphicsPath();
-            var w = menu.Width;
-            var h = menu.Height;
-            var d = CornerRadius * 2;
-            path.AddArc(0, 0, d, d, 180, 90);
-            path.AddArc(w - d - 1, 0, d, d, 270, 90);
-            path.AddArc(w - d - 1, h - d - 1, d, d, 0, 90);
-            path.AddArc(0, h - d - 1, d, d, 90, 90);
-            path.CloseFigure();
+            using var path = RoundedPath(new Rectangle(0, 0, menu.Width - 1, menu.Height - 1), PopupCornerRadius);
             menu.Region = new Region(path);
         }
         catch
@@ -71,6 +94,58 @@ internal static class TrayMenuTheme
             // A square menu is a cosmetic loss; a menu that throws while opening is the only way
             // out of the application becoming unreachable.
         }
+    }
+
+    private static GraphicsPath RoundedPath(Rectangle bounds, int radius)
+    {
+        var d = radius * 2;
+        var path = new GraphicsPath();
+        path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+        path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+        path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+        path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    // ---------------- Reading the app's palette ----------------
+
+    private static System.Windows.Media.Color? Lookup(string resourceKey)
+    {
+        try
+        {
+            return (Application.Current?.TryFindResource(resourceKey) as System.Windows.Media.SolidColorBrush)?.Color;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A theme colour with its alpha dropped — for brushes the app paints over a backdrop that the menu does not have.</summary>
+    private static Color Opaque(string resourceKey, Color fallback) =>
+        Lookup(resourceKey) is { } c ? Color.FromArgb(c.R, c.G, c.B) : fallback;
+
+    /// <summary>
+    /// A translucent theme colour flattened onto the surface beneath it.
+    ///
+    /// The app's borders and secondary text are white at low alpha, which works because WPF
+    /// composites them over whatever the card is showing. GDI+ menu painting has no such
+    /// backdrop, so the blend has to be done here — otherwise a 15%-alpha white border is drawn
+    /// as very nearly white.
+    /// </summary>
+    private static Color Over(string resourceKey, Color under, Color fallback)
+    {
+        if (Lookup(resourceKey) is not { } c)
+        {
+            return fallback;
+        }
+
+        var alpha = c.A / 255.0;
+        return Color.FromArgb(
+            (int)Math.Round(under.R + (c.R - under.R) * alpha),
+            (int)Math.Round(under.G + (c.G - under.G) * alpha),
+            (int)Math.Round(under.B + (c.B - under.B) * alpha));
     }
 
     private sealed class Renderer : ToolStripProfessionalRenderer
@@ -82,7 +157,13 @@ internal static class TrayMenuTheme
 
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
         {
-            e.TextColor = e.Item.Selected ? Color.White : TextPrimary;
+            // The shortcut arrives through this same call, as a second draw with its own text.
+            var isShortcut = e.Item is ToolStripMenuItem { ShortcutKeyDisplayString: { } s }
+                             && s.Length > 0 && e.Text == s;
+
+            e.TextColor = isShortcut
+                ? (e.Item.Selected ? Color.FromArgb(220, 235, 255) : TextMuted)
+                : (e.Item.Selected ? Color.White : TextPrimary);
             base.OnRenderItemText(e);
         }
 
@@ -105,13 +186,7 @@ internal static class TrayMenuTheme
             // band painted edge to edge across the popup.
             var bounds = new Rectangle(3, 1, e.Item.Width - 6, e.Item.Height - 2);
             using var brush = new SolidBrush(Highlight);
-            using var path = new GraphicsPath();
-            const int radius = 5;
-            path.AddArc(bounds.X, bounds.Y, radius * 2, radius * 2, 180, 90);
-            path.AddArc(bounds.Right - radius * 2, bounds.Y, radius * 2, radius * 2, 270, 90);
-            path.AddArc(bounds.Right - radius * 2, bounds.Bottom - radius * 2, radius * 2, radius * 2, 0, 90);
-            path.AddArc(bounds.X, bounds.Bottom - radius * 2, radius * 2, radius * 2, 90, 90);
-            path.CloseFigure();
+            using var path = RoundedPath(bounds, ItemCornerRadius);
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             e.Graphics.FillPath(brush, path);
