@@ -32,14 +32,29 @@
     <SolidColorBrush x:Key="GlassTintBrush" Color="#8C16161C" />
 
     <!--
-        The fill for a panel that covers the card's own contents — the actions, the delete
-        question. Same hue as the glass, just opaque enough to hide the stack behind it.
-
-        Both of those panels used to carry a hand-typed #101014, which is far blacker than
-        anything else this app draws, and next to the tray menu it read as a hole rather than a
-        surface. It is a theme brush now for the same reason the tray menu's colours became one.
+        The veil behind the action panel: enough to settle the shelf's contents back so the tiles
+        read against them, and no more. It was opaque, which turned a card made of glass into a
+        slab with buttons on it — the tiles looked solid because the sheet under them was.
     -->
-    <SolidColorBrush x:Key="ScrimBrush" Color="#F21C1C20" />
+    <SolidColorBrush x:Key="ScrimBrush" Color="#591C1C20" />
+
+    <!--
+        Heavier, for the delete question. That panel is a question about destroying files and its
+        text has to be read rather than glanced at, which is worth more than seeing through it.
+    -->
+    <SolidColorBrush x:Key="ScrimStrongBrush" Color="#E61C1C20" />
+
+    <!--
+        A drop target under the pointer lights up rather than turning a colour. Filling it with
+        the accent made the tile look like a selected item in a list; brightening it looks like
+        what it is, a surface the thing in your hand is about to land on.
+    -->
+    <SolidColorBrush x:Key="DropHighlightBrush" Color="#3DFFFFFF" />
+    <SolidColorBrush x:Key="DropHighlightBorderBrush" Color="#A6FFFFFF" />
+
+    <!-- The same, for the one tile that destroys what lands on it. -->
+    <SolidColorBrush x:Key="DangerDropHighlightBrush" Color="#33EF4444" />
+    <SolidColorBrush x:Key="DangerDropBorderBrush" Color="#CCEF4444" />
     <LinearGradientBrush x:Key="GlassSheenBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Offset="0" Color="#2EFFFFFF" />
         <GradientStop Offset="0.35" Color="#0AFFFFFF" />
@@ -329,6 +344,7 @@
     -->
     <Style x:Key="BigActionButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource ControlBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource SurfaceBorderBrush}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Focusable" Value="False" />
@@ -336,8 +352,10 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
+                    <!-- BorderBrush is template-bound so the drop handler can brighten the edge
+                         as well as the fill; a fixed brush here would ignore it. -->
                     <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="12"
-                            BorderBrush="{StaticResource SurfaceBorderBrush}" BorderThickness="1">
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                             <Viewbox Width="26" Height="26" HorizontalAlignment="Center">
                                 <Canvas Width="24" Height="24">
@@ -352,10 +370,15 @@
                         </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <!-- Opacity rather than a Background setter, so the accent fill the drop
-                             handler assigns is not overwritten the moment the pointer arrives. -->
+                        <!--
+                            Hover brightens the edge only. Not the fill: a TargetName setter on
+                            Root's Background outranks the TemplateBinding, so it would erase the
+                            highlight the drop handler assigns the instant the pointer arrives —
+                            and during a drag the mouse is captured, so this never fires anyway.
+                        -->
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Opacity" Value="0.75" />
+                            <Setter TargetName="Root" Property="BorderBrush"
+                                    Value="{StaticResource DropHighlightBorderBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

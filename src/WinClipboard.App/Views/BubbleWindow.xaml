@@ -324,7 +324,7 @@
                         and the whole reason for opening them is to be easy to hit while holding a
                         file. Squared up they are more than twice as wide.
                     -->
-                    <UniformGrid Grid.Row="1" Rows="2" Columns="2" Margin="8,0,8,12">
+                    <UniformGrid x:Name="ActionTiles" Grid.Row="1" Rows="2" Columns="2" Margin="8,0,8,12">
                         <Button Content="Chuyển" Tag="{StaticResource IconMove}"
                                 ToolTip="Thả vào đây để chuyển, hoặc bấm để chuyển cả shelf"
                                 CommandParameter="{x:Static models:QuickActionType.MoveToFolder}"
@@ -365,7 +365,7 @@
                 undo is red and says so on its own line.
             -->
             <Border x:Name="DeleteConfirm" Grid.Row="1" Grid.RowSpan="3" Visibility="Collapsed"
-                    Background="{StaticResource ScrimBrush}" BorderBrush="{StaticResource SurfaceBorderBrush}"
+                    Background="{StaticResource ScrimStrongBrush}" BorderBrush="{StaticResource SurfaceBorderBrush}"
                     BorderThickness="1" CornerRadius="12" Margin="0,0,0,2">
                 <StackPanel VerticalAlignment="Center" Margin="18,0">
                     <Viewbox Width="30" Height="30" HorizontalAlignment="Center">
