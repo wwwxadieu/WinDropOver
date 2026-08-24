@@ -275,26 +275,69 @@
                 </Button>
 
             <!--
-                Always present, not only on an empty shelf. Dropping onto a tile runs that action
-                on just what was dropped; clicking it runs it on everything the shelf holds.
+                One button instead of a row of three.
+
+                The row was permanently spread across the bottom of the card, spending a fifth of
+                a 316px window on three targets that are only wanted at the end of a gesture. Now
+                the actions stay folded away until a drag actually arrives over them, and then
+                open as tiles big enough to aim at while holding a file — which is the only moment
+                the size of the target matters.
             -->
-            <UniformGrid x:Name="ActionBar" Grid.Row="3" Rows="1" Margin="0,10,0,0">
-                <Button Content="Chuyển" Tag="{x:Static models:QuickActionType.MoveToFolder}"
-                        ToolTip="Thả vào đây để chuyển, hoặc bấm để chuyển cả shelf"
-                        Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
-                        DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
-                        DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
-                <Button Content="Sao chép" Tag="{x:Static models:QuickActionType.CopyToFolder}"
-                        ToolTip="Thả vào đây để sao chép, hoặc bấm để sao chép cả shelf"
-                        Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
-                        DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
-                        DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
-                <Button Content="Nén ZIP" Tag="{x:Static models:QuickActionType.Zip}"
-                        ToolTip="Thả vào đây để nén, hoặc bấm để nén cả shelf"
-                        Style="{StaticResource QuickActionButtonStyle}" AllowDrop="True"
-                        DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
-                        DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
-            </UniformGrid>
+            <Button x:Name="ActionToggle" Grid.Row="3" Margin="0,10,0,0"
+                    Style="{StaticResource PillButtonStyle}" HorizontalAlignment="Center"
+                    AllowDrop="True" ToolTip="Kéo file vào đây để chọn hành động"
+                    DragEnter="OnActionToggleDragEnter" DragOver="OnActionDragOver"
+                    Click="OnActionToggleClicked">
+                <StackPanel Orientation="Horizontal">
+                    <Viewbox Width="14" Height="14" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="{StaticResource IconBolt}" Stroke="{StaticResource TextSecondaryBrush}"
+                                  StrokeThickness="1.8" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="Hành động" FontSize="11" Margin="7,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <!--
+                The opened actions. Spans the whole middle of the card so that once it is showing,
+                moving between tiles never takes the pointer outside it — the one thing that would
+                otherwise fold it away mid-aim.
+            -->
+            <Border x:Name="ActionOverlay" Grid.Row="1" Grid.RowSpan="3" Visibility="Collapsed"
+                    Background="#E6101014" CornerRadius="12" Margin="0,0,0,2" AllowDrop="True"
+                    DragOver="OnActionDragOver" DragLeave="OnActionOverlayDragLeave">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Thả vào một ô để chạy" Margin="0,12,0,4"
+                               HorizontalAlignment="Center" FontSize="11"
+                               Foreground="{StaticResource TextMutedBrush}" />
+                    <UniformGrid Grid.Row="1" Rows="1" Margin="8,0,8,12">
+                        <Button Content="Chuyển" Tag="{StaticResource IconMove}"
+                                ToolTip="Thả vào đây để chuyển, hoặc bấm để chuyển cả shelf"
+                                CommandParameter="{x:Static models:QuickActionType.MoveToFolder}"
+                                Style="{StaticResource BigActionButtonStyle}" AllowDrop="True"
+                                DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
+                                DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
+                        <Button Content="Sao chép" Tag="{StaticResource IconCopy}"
+                                ToolTip="Thả vào đây để sao chép, hoặc bấm để sao chép cả shelf"
+                                CommandParameter="{x:Static models:QuickActionType.CopyToFolder}"
+                                Style="{StaticResource BigActionButtonStyle}" AllowDrop="True"
+                                DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
+                                DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
+                        <Button Content="Nén ZIP" Tag="{StaticResource IconZip}"
+                                ToolTip="Thả vào đây để nén, hoặc bấm để nén cả shelf"
+                                CommandParameter="{x:Static models:QuickActionType.Zip}"
+                                Style="{StaticResource BigActionButtonStyle}" AllowDrop="True"
+                                DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
+                                DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
+                    </UniformGrid>
+                </Grid>
+            </Border>
 
             <!--
                 Shown only once the shelf holds something, which is exactly when hiding it starts
