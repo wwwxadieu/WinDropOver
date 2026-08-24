@@ -5,69 +5,44 @@
 <style>
   /*
      Deliberately single-theme. The stage is a recording surface for a dark application:
-     every colour below is lifted from src/WinClipboard.App/Styles/Theme.xaml and converted
-     from WPF's #AARRGGBB to CSS's #RRGGBBAA. A light variant would misrepresent the product,
-     so the page paints every colour explicitly and never borrows the host's ground.
+     every colour is lifted from src/WinClipboard.App/Styles/Theme.xaml. A light variant
+     would misrepresent the product, so the page paints every colour explicitly and never
+     borrows the host's ground.
   */
   :root {
-    --ink:        #0B0B0E;
-    --ink-2:      #141419;
-    --ink-3:      #1B1B22;
-    --glass:      #1C1C20D9;
-    --edge:       #FFFFFF40;
-    --control:    #FFFFFF14;
-    --control-2:  #FFFFFF26;
-    --accent:     #3B82F6;
-    --accent-dim: #3B82F61F;
-    --danger:     #EF4444;
-    --text:       #F2F2F2;
-    --text-2:     #FFFFFF99;
-    --text-3:     #FFFFFF66;
+    --ink: #0B0B0E; --ink-2: #141419;
+    --control: #FFFFFF14; --control-2: #FFFFFF26;
+    --accent: #3B82F6; --accent-dim: #3B82F61F; --danger: #EF4444;
+    --text: #F2F2F2; --text-2: #FFFFFF99; --text-3: #FFFFFF66;
     --sans: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
     --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
   }
-
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--ink); color: var(--text);
-    font-family: var(--sans); -webkit-font-smoothing: antialiased;
-  }
+  body { margin: 0; background: var(--ink); color: var(--text); font-family: var(--sans);
+         -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; display: flex;
-          flex-direction: column; gap: 22px; }
-
-  header { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+          flex-direction: column; gap: 20px; }
   h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
-  .sub { font-size: 15px; line-height: 1.5; color: var(--text-2); max-width: 62ch;
+  .sub { font-size: 15px; line-height: 1.5; color: var(--text-2); max-width: 64ch;
          margin: 6px 0 0; text-wrap: pretty; }
+  .sub code, .note code { font-family: var(--mono); font-size: 13px; color: var(--text); }
 
-  /* ---- stage ------------------------------------------------------------ */
-  .stage-frame {
-    position: relative; width: 100%; background: #000; border-radius: 14px;
-    border: 1px solid var(--control-2); overflow: hidden;
-    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
-  }
-  .stage-frame::after {
-    content: attr(data-dim); position: absolute; right: 10px; bottom: 8px; z-index: 40;
-    font-family: var(--mono); font-size: 11px; color: var(--text-3);
-    background: #00000099; padding: 3px 8px; border-radius: 6px; pointer-events: none;
-  }
-  #viewport { position: relative; width: 100%; overflow: hidden; }
-  #scene { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0; }
+  .stage-frame { position: relative; background: #000; border-radius: 14px; margin: 0 auto;
+                 border: 1px solid var(--control-2); overflow: hidden;
+                 box-shadow: 0 24px 60px rgba(0,0,0,.5); line-height: 0; }
+  canvas { display: block; width: 100%; height: auto; }
 
-  /* ---- transport -------------------------------------------------------- */
   .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  button {
-    font-family: inherit; font-size: 14px; font-weight: 500; color: var(--text);
-    background: var(--control); border: 1px solid var(--control-2); border-radius: 10px;
-    padding: 9px 15px; cursor: pointer; min-height: 44px;
-  }
-  button:hover { background: #FFFFFF1F; }
+  button { font-family: inherit; font-size: 14px; font-weight: 500; color: var(--text);
+           background: var(--control); border: 1px solid var(--control-2); border-radius: 10px;
+           padding: 9px 15px; cursor: pointer; min-height: 44px; }
+  button:hover:not(:disabled) { background: #FFFFFF1F; }
+  button:disabled { opacity: .4; cursor: default; }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  button[aria-pressed="true"] { background: var(--accent-dim); border-color: #3B82F680;
-                                color: #FFF; }
-  button.primary { background: var(--accent); border-color: transparent; color: #fff;
-                   font-weight: 700; }
-  button.primary:hover { background: #5B9BFB; }
+  button[aria-pressed="true"] { background: var(--accent-dim); border-color: #3B82F680; color: #fff; }
+  button.primary { background: var(--accent); border-color: transparent; color: #fff; font-weight: 700; }
+  button.primary:hover:not(:disabled) { background: #5B9BFB; }
+  button.rec-on { background: var(--danger); border-color: transparent; color: #fff; font-weight: 700; }
   .group { display: flex; gap: 6px; }
   .spacer { flex: 1; }
   .clock { font-family: var(--mono); font-size: 15px; color: var(--text-2);
@@ -75,18 +50,19 @@
 
   .scrub { width: 100%; appearance: none; height: 6px; border-radius: 3px; margin: 0;
            background: var(--control); cursor: pointer; }
-  .scrub::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px;
-           border-radius: 8px; background: var(--accent); border: 2px solid var(--ink); }
+  .scrub::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 8px;
+           background: var(--accent); border: 2px solid var(--ink); }
   .scrub::-moz-range-thumb { width: 14px; height: 14px; border-radius: 8px;
            background: var(--accent); border: 2px solid var(--ink); }
   .scrub:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-  /* ---- shot list -------------------------------------------------------- */
-  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
-           gap: 10px; }
+  #status { min-height: 22px; font-size: 14px; color: var(--text-2); }
+  #status b { color: var(--text); }
+  #status.err { color: #FCA5A5; }
+
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: 10px; }
   .shot { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 13px 15px;
-          border-radius: 12px; background: #FFFFFF08; border: 1px solid var(--control-2);
-          cursor: pointer; }
+          border-radius: 12px; background: #FFFFFF08; border: 1px solid var(--control-2); cursor: pointer; }
   .shot:hover { background: #FFFFFF0F; }
   .shot[aria-current="true"] { border-color: #3B82F680; background: var(--accent-dim); }
   .shot .t { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
@@ -94,50 +70,28 @@
   .shot .n { font-size: 14px; font-weight: 700; }
   .shot .d { font-size: 12.5px; line-height: 1.45; color: var(--text-2); text-wrap: pretty; }
 
-  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-           gap: 12px; }
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
   .note { padding: 16px 18px; border-radius: 12px; background: #FFFFFF08;
           border: 1px solid var(--control-2); }
   .note h3 { margin: 0 0 7px; font-size: 14px; font-weight: 700; }
-  .note p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2);
-            text-wrap: pretty; }
-  .note code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
-
-  /* ---- recording mode: chrome away, stage only -------------------------- */
-  body.rec { background: #000; }
-  body.rec .wrap { max-width: none; padding: 0; height: 100vh; justify-content: center; gap: 0; }
-  body.rec header, body.rec .bar, body.rec .shots, body.rec .notes, body.rec .scrub-row,
-  body.rec .stage-frame::after { display: none; }
-  body.rec .stage-frame { border: 0; border-radius: 0; box-shadow: none; }
-  body.rec .exit { display: block; position: fixed; right: 14px; top: 14px; z-index: 90;
-                   opacity: 0.25; }
-  body.rec .exit:hover { opacity: 1; }
-  .exit { display: none; }
-
-  @media (prefers-reduced-motion: reduce) { .rm { display: block; } }
+  .note p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2); text-wrap: pretty; }
   .rm { display: none; font-size: 13px; color: var(--text-3); }
+  @media (prefers-reduced-motion: reduce) { .rm { display: block; } }
 </style>
 
 <div class="wrap">
-  <header>
-    <div>
-      <h1>Sân quay WinDropOver</h1>
-      <p class="sub">Bảy cảnh chạy đúng thời lượng chuyển động thật trong mã nguồn — thẻ mở
-        <code style="font-family:var(--mono);color:var(--text)">190ms</code>, chồng file
-        <code style="font-family:var(--mono);color:var(--text)">260ms</code>, bảng hành động
-        <code style="font-family:var(--mono);color:var(--text)">170ms</code> với bốn ô lệch nhau
-        <code style="font-family:var(--mono);color:var(--text)">40ms</code>. Bật chế độ quay rồi
-        thu màn hình để lấy video, hoặc dùng nó làm bản dựng mẫu khi quay app thật.</p>
-      <p class="rm">Bạn đang bật chế độ giảm chuyển động, nên trang không tự chạy — bấm Chạy khi muốn.</p>
-    </div>
-  </header>
-
-  <div class="stage-frame" id="frame" data-dim="1920 × 1080">
-    <div id="viewport"><div id="scene"></div></div>
+  <div>
+    <h1>Sân quay WinDropOver</h1>
+    <p class="sub">Bảy cảnh chạy đúng thời lượng chuyển động thật trong mã nguồn — thẻ mở
+      <code>190ms</code>, chồng file <code>260ms</code>, bảng hành động <code>170ms</code> với bốn ô
+      lệch nhau <code>40ms</code>. Bấm <b>Ghi video</b> để trang tự dựng ra một tệp và tải về.</p>
+    <p class="rm">Bạn đang bật chế độ giảm chuyển động, nên trang không tự chạy — bấm Chạy khi muốn.</p>
   </div>
 
-  <div class="scrub-row"><input class="scrub" id="scrub" type="range" min="0" max="30000"
-       value="0" step="10" aria-label="Vị trí trong video"></div>
+  <div class="stage-frame" id="frame"><canvas id="stage" width="1920" height="1080"></canvas></div>
+
+  <input class="scrub" id="scrub" type="range" min="0" max="30000" value="0" step="10"
+         aria-label="Vị trí trong video">
 
   <div class="bar">
     <button class="primary" id="play">Chạy</button>
@@ -147,72 +101,49 @@
       <button class="ar" data-ar="1:1" aria-pressed="false">1:1</button>
       <button class="ar" data-ar="9:16" aria-pressed="false">9:16</button>
     </div>
-    <div class="group" role="group" aria-label="Tốc độ">
-      <button class="sp" data-sp="0.5" aria-pressed="false">0,5×</button>
-      <button class="sp" data-sp="1" aria-pressed="true">1×</button>
-    </div>
     <div class="spacer"></div>
     <span class="clock" id="clock">0,0 / 30,0 s</span>
-    <button id="rec">Chế độ quay</button>
+    <button id="rec">Ghi video</button>
   </div>
 
+  <div id="status" role="status" aria-live="polite"></div>
   <div class="shots" id="shots"></div>
 
   <div class="notes">
-    <div class="note"><h3>Khi thu màn hình trang này</h3>
-      <p>Bấm <b>Chế độ quay</b> để giấu hết phần điều khiển, rồi thu vùng cửa sổ.
-      Thu ở <code>60fps</code> — ở 30fps các chuyển động 40–170ms sẽ bị nuốt mất, mà đó
-      chính là thứ đang muốn khoe.</p></div>
-    <div class="note"><h3>Khi quay app thật</h3>
-      <p>Khay thật rộng <code>316px</code>. Trên màn hình 1920 nó khá nhỏ trong khung
-      hình — quay ở <code>1280×720</code> để khay chiếm tỉ lệ lớn hơn, hoặc phóng lúc dựng.
-      Trên sân quay này khay đang được phóng <code>1,5×</code> cho dễ đọc.</p></div>
+    <div class="note"><h3>Ghi video</h3>
+      <p>Trang vẽ từng khung lên canvas rồi đóng thành tệp, nên không cần phần mềm quay màn hình
+      và không lẫn con trỏ thật của bạn. Ba mươi giây thu ở 60fps, xong thì trình duyệt hỏi chỗ lưu.</p></div>
+    <div class="note"><h3>Định dạng</h3>
+      <p>Ưu tiên <code>.mp4</code> nếu trình duyệt hỗ trợ (Chrome và Edge bản mới trên Windows đều có),
+      không thì <code>.webm</code>. Instagram chỉ nhận mp4 — gặp webm thì đưa qua CapCut hay bất kỳ
+      trình dựng nào xuất lại một lần.</p></div>
     <div class="note"><h3>Cắt 1:1 và 9:16</h3>
-      <p>Hai nút khung hình cắt đúng như lúc dựng thật, không dựng lại bố cục. Bấm thử
-      <code>9:16</code> để xem cảnh nào bị mất hai mép — mọi thứ quan trọng đã được đặt
-      giữa khung, nhưng đoạn con trỏ đi vào ở cảnh 1 sẽ hụt.</p></div>
+      <p>Đổi khung hình rồi ghi lại là ra đúng tỉ lệ đó, vẽ lại ở độ phân giải đầy đủ chứ không phóng
+      to ảnh cắt. Bấm thử <code>9:16</code> để xem cảnh nào bị mất hai mép trước khi ghi.</p></div>
   </div>
 </div>
-<button class="exit" id="exit">Thoát chế độ quay</button>
 <script>
 (function () {
   "use strict";
 
-  // Every duration below is the one the app actually uses, read out of
+  // ---------------------------------------------------------------- constants
+  // Every duration is the one the app actually uses, read out of
   // Views/BubbleWindow.xaml.cs. Changing them here makes the rehearsal a lie.
-  var CARD_FADE = 120, CARD_GROW = 190;      // PlayOpenAnimation
-  var SHEET_ARRIVE = 260, SHEET_FADE = 150;  // Arrive / ArriveDuration
-  var ACT_OPEN = 170, ACT_TILE_STEP = 40;    // ActionsOpenDuration, 40 * order
-  var ACT_TILE_FADE = 140, ACT_TILE_RISE = 200;
+  var CARD_FADE = 120, CARD_GROW = 190;        // PlayOpenAnimation
+  var SHEET_ARRIVE = 260, SHEET_FADE = 150;    // Arrive / ArriveDuration
+  var ACT_OPEN = 170, ACT_STEP = 40;           // ActionsOpenDuration, 40 * order
+  var ACT_FADE = 140, ACT_RISE = 200;
 
-  var TOTAL = 30000;
+  var TOTAL = 30000, SCALE = 1.5, CX = 723, CY = 258;
   var T = {
     dragEnd: 2600, shakeA: 3000, shakeB: 4900, cardIn: 5000,
     drops: [8200, 9300, 10400, 11500],
     outPick: 13400, outDrop: 16600,
-    actMove: 19000, actOpen: 20600, actDrop: 23200,
-    end: 25400
+    actMove: 19000, actOpen: 20600, actDrop: 23200, end: 25400
   };
 
-  var SCALE = 1.5;                       // the card, enlarged so it reads at 1080p
-  var CX = 723, CY = 258;                // card origin in scene coordinates
-
-  var SHOTS = [
-    { a: 0,     b: 3000,  n: "Ngập ngừng",   d: "Kéo file đi ngang, rồi khựng lại." },
-    { a: 3000,  b: 5000,  n: "Lắc",          d: "Ba nhịp trái–phải, vẫn giữ file." },
-    { a: 5000,  b: 8200,  n: "Khay hiện ra", d: "Bung lên dưới con trỏ trong 190ms." },
-    { a: 8200,  b: 13400, n: "Thả vào",      d: "Bốn file, mỗi file nảy vào trong 260ms." },
-    { a: 13400, b: 19000, n: "Kéo ra",       d: "File rời khay và tự biến mất khỏi khay." },
-    { a: 19000, b: 25400, n: "Hành động",    d: "Bảng nở 170ms, bốn ô lệch nhau 40ms." },
-    { a: 25400, b: 30000, n: "Kết",          d: "Logo và địa chỉ tải." }
-  ];
-
-  var FILES = [
-    ["bao-cao-Q3", "PDF",  "#EF4444"],
-    ["anh-bia",    "PNG",  "#22C55E"],
-    ["hop-dong",   "DOCX", "#3B82F6"],
-    ["du-lieu",    "XLSX", "#16A34A"]
-  ];
+  var SANS = '"Be Vietnam Pro", "Segoe UI", system-ui, sans-serif';
+  var MONO = '"JetBrains Mono", ui-monospace, monospace';
 
   var ICON = {
     close: "M 18,6 L 6,18 M 6,6 L 18,18",
@@ -224,366 +155,397 @@
     bolt: "M 13,3 L 6,13 L 11.5,13 L 11,21 L 18,11 L 12.5,11 Z",
     trashX: "M 5,7 L 19,7 M 10,7 L 10,5 L 14,5 L 14,7 M 6.5,7 L 7.5,19 L 16.5,19 L 17.5,7 M 10,10.5 L 14,15.5 M 14,10.5 L 10,15.5"
   };
+  var PATH = {};
+  for (var k in ICON) PATH[k] = new Path2D(ICON[k]);
+  var CURSOR = new Path2D("M 5,2 L 5,19 L 9.5,15 L 12.5,21.5 L 15.5,20 L 12.5,13.8 L 18.5,13.5 Z");
+  var PAGE = new Path2D("M 8,3 L 25,3 L 34,12 L 34,37 L 8,37 Z");
+  var FOLD = new Path2D("M 25,3 L 25,12 L 34,12");
 
-  function svg(d, size, stroke, w) {
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none">' +
-      '<path d="' + d + '" stroke="' + stroke + '" stroke-width="' + (w || 1.8) +
-      '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  }
+  var FILES = [
+    ["bao-cao-Q3", "PDF", "#EF4444"], ["anh-bia", "PNG", "#22C55E"],
+    ["hop-dong", "DOCX", "#3B82F6"], ["du-lieu", "XLSX", "#16A34A"]
+  ];
 
-  function mark(size) {
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 100 100">' +
-      '<rect x="6" y="6" width="88" height="88" rx="22" fill="#3B82F6"/>' +
-      '<rect x="43.5" y="18.5" width="13" height="28" rx="5.5" fill="#fff"/>' +
-      '<path d="M 31.5,42 L 68.5,42 L 50,65.5 Z" fill="#fff"/>' +
-      '<rect x="20.5" y="71.5" width="59" height="13.5" rx="6" fill="#FFFFFFCD"/></svg>';
-  }
+  var SHOTS = [
+    { a: 0, b: 3000, n: "Ngập ngừng", d: "Kéo file đi ngang, rồi khựng lại." },
+    { a: 3000, b: 5000, n: "Lắc", d: "Ba nhịp trái–phải, vẫn giữ file." },
+    { a: 5000, b: 8200, n: "Khay hiện ra", d: "Bung lên dưới con trỏ trong 190ms." },
+    { a: 8200, b: 13400, n: "Thả vào", d: "Bốn file, mỗi file nảy vào trong 260ms." },
+    { a: 13400, b: 19000, n: "Kéo ra", d: "File rời khay và tự biến mất khỏi khay." },
+    { a: 19000, b: 25400, n: "Hành động", d: "Bảng nở 170ms, bốn ô lệch nhau 40ms." },
+    { a: 25400, b: 30000, n: "Kết", d: "Logo và địa chỉ tải." }
+  ];
 
-  function glyph(ext, tint, s) {
-    return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 40 40">' +
-      '<path d="M 8,3 L 25,3 L 34,12 L 34,37 L 8,37 Z" fill="' + tint + '" fill-opacity="0.16" stroke="' +
-      tint + '" stroke-width="1.6" stroke-linejoin="round"/>' +
-      '<path d="M 25,3 L 25,12 L 34,12" fill="none" stroke="' + tint +
-      '" stroke-width="1.6" stroke-linejoin="round"/>' +
-      '<text x="21" y="30" text-anchor="middle" font-family="JetBrains Mono, monospace" ' +
-      'font-size="8.5" font-weight="700" fill="' + tint + '">' + ext + '</text></svg>';
-  }
+  var CAPTIONS = [
+    [200, 2900, "Kéo được rồi."], [3100, 4880, "Giờ thả đâu?"],
+    [5120, 7900, "Lắc chuột."], [8200, 13100, "Thả vào. Tìm chỗ để sau."],
+    [13600, 18500, "Kéo ra là xong."], [19000, 25000, "Chuyển · Sao chép · Nén ZIP · Xoá"]
+  ];
 
-  // ------------------------------------------------------------------ scene
-  var scene = document.getElementById("scene");
-
-  function tileMarkup(i) {
-    var f = FILES[i];
-    return '<div class="sheet" data-i="' + i + '" style="position:absolute;width:80px;">' +
-      '<div style="width:72px;height:72px;border-radius:8px;background:#FFFFFF14;display:flex;' +
-      'align-items:center;justify-content:center;margin:0 auto;">' + glyph(f[1], f[2], 40) + '</div>' +
-      '<div style="margin-top:4px;font-size:10px;color:#FFFFFF99;text-align:center;' +
-      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + f[0] + '</div></div>';
-  }
-
-  function actTile(d, label, danger) {
-    var c = danger ? "#EF4444" : "#F2F2F2";
-    return '<div class="atile" style="border-radius:12px;background:#FFFFFF14;border:1px solid ' +
-      (danger ? "#EF444440" : "#FFFFFF26") + ';display:flex;flex-direction:column;' +
-      'align-items:center;justify-content:center;gap:7px;">' + svg(d, 26, c) +
-      '<div style="font-size:11px;color:' + c + '">' + label + '</div></div>';
-  }
-
-  scene.innerHTML =
-    // wallpaper
-    '<div style="position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 38%,' +
-    '#191922 0%,#0B0B0E 70%);"></div>' +
-    // a few desktop icons, so the stage reads as a desktop and not a slide
-    '<div id="desk" style="position:absolute;left:120px;top:150px;display:flex;' +
-    'flex-direction:column;gap:34px;">' +
-      '<div style="display:flex;flex-direction:column;align-items:center;gap:7px;width:104px;">' +
-      glyph("PDF", "#EF4444", 54) +
-      '<div style="font-size:13px;color:#FFFFFF99;">bao-cao-Q3</div></div>' +
-      '<div style="display:flex;flex-direction:column;align-items:center;gap:7px;width:104px;">' +
-      glyph("PNG", "#22C55E", 54) +
-      '<div style="font-size:13px;color:#FFFFFF99;">anh-bia</div></div>' +
-    '</div>' +
-    // destination folder window
-    '<div id="folder" style="position:absolute;left:1330px;top:470px;width:400px;height:270px;' +
-    'border-radius:12px;background:#16161BE6;border:1px solid #FFFFFF26;opacity:0;' +
-    'box-shadow:0 24px 60px rgba(0,0,0,.55);overflow:hidden;">' +
-      '<div style="height:38px;border-bottom:1px solid #FFFFFF14;display:flex;align-items:center;' +
-      'padding:0 14px;font-size:13px;color:#FFFFFF99;">Tài liệu › Quý 3</div>' +
-      '<div id="folderBody" style="padding:18px;display:flex;gap:14px;flex-wrap:wrap;"></div>' +
-    '</div>' +
-    // shake trail
-    '<svg id="trail" style="position:absolute;left:770px;top:296px;opacity:0;" width="240" ' +
-    'height="70" viewBox="0 0 240 70" fill="none"><defs><linearGradient id="tg" x1="0" x2="1">' +
-    '<stop offset="0" stop-color="#3B82F6" stop-opacity="0"/>' +
-    '<stop offset="1" stop-color="#3B82F6" stop-opacity=".95"/></linearGradient></defs>' +
-    '<path d="M 6,35 C 30,4 54,66 88,35 C 118,6 142,64 176,35 C 200,16 218,30 234,35" ' +
-    'stroke="url(#tg)" stroke-width="3" stroke-linecap="round"/></svg>' +
-    // the shelf card, authored at 1:1 with the app and scaled as a whole
-    '<div id="card" style="position:absolute;left:' + CX + 'px;top:' + CY + 'px;width:316px;' +
-    'height:376px;transform-origin:0 0;opacity:0;">' +
-      '<div style="position:absolute;inset:-18px;border-radius:30px;background:' +
-      'radial-gradient(120px 120px at 30% 25%,#3B82F65C,transparent 70%),' +
-      'radial-gradient(160px 160px at 75% 80%,#7C3AED4D,transparent 70%);filter:blur(30px);"></div>' +
-      '<div style="position:absolute;inset:0;border-radius:14px;background:#1C1C20D9;' +
-      'box-shadow:0 28px 70px rgba(0,0,0,.6);"></div>' +
-      '<div style="position:absolute;inset:0;border-radius:14px;background:' +
-      'linear-gradient(160deg,#FFFFFF1A,#FFFFFF00 42%);"></div>' +
-      '<div style="position:absolute;inset:0;border-radius:14px;border:1px solid #FFFFFF40;' +
-      'padding:12px 14px;">' +
-        '<div style="height:28px;display:flex;align-items:center;justify-content:space-between;">' +
-          '<div style="width:28px;height:28px;border-radius:14px;background:#FFFFFF14;display:flex;' +
-          'align-items:center;justify-content:center;">' + svg(ICON.close, 15, "#FFFFFF99") + '</div>' +
-          '<div style="width:34px;height:4px;border-radius:2px;background:#FFFFFF40;"></div>' +
-          '<div style="width:28px;height:28px;border-radius:14px;background:#FFFFFF14;display:flex;' +
-          'align-items:center;justify-content:center;">' + svg(ICON.trash, 15, "#EF4444") + '</div>' +
-        '</div>' +
-        '<div id="empty" style="position:absolute;left:14px;right:14px;top:56px;bottom:96px;' +
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">' +
-          '<div style="width:56px;height:56px;border-radius:14px;border:1.5px dashed #FFFFFF26;' +
-          'display:flex;align-items:center;justify-content:center;margin-bottom:6px;">' +
-          svg(ICON.bolt, 24, "#FFFFFF66") + '</div>' +
-          '<div style="font-size:13px;color:#F2F2F2;">Thả tệp vào đây</div>' +
-          '<div style="font-size:11px;color:#FFFFFF66;">từ bất kỳ thư mục hay ứng dụng nào</div>' +
-        '</div>' +
-        '<div id="sheets">' + tileMarkup(0) + tileMarkup(1) + tileMarkup(2) + tileMarkup(3) + '</div>' +
-        '<div id="pill" style="position:absolute;left:0;right:0;top:319px;display:flex;' +
-        'justify-content:center;opacity:0;"><div style="border-radius:13px;background:#FFFFFF14;' +
-        'padding:5px 12px;display:inline-flex;align-items:center;gap:6px;font-size:11px;' +
-        'color:#F2F2F2;"><span id="count">0 mục</span>' + svg(ICON.chevron, 14, "#FFFFFF66", 2) +
-        '</div></div>' +
-        '<div id="actPill" style="position:absolute;left:0;right:0;top:341px;display:flex;' +
-        'justify-content:center;"><div style="border-radius:13px;background:#FFFFFF14;' +
-        'padding:5px 12px;display:inline-flex;align-items:center;gap:7px;font-size:11px;' +
-        'color:#F2F2F2;">' + svg(ICON.bolt, 14, "#FFFFFF99") + '<span>Hành động</span></div></div>' +
-        // the action panel, growing out of the button it replaces
-        '<div id="acts" style="position:absolute;left:14px;right:14px;top:46px;bottom:12px;' +
-        'border-radius:12px;background:#1C1C2059;border:1px solid #FFFFFF26;display:flex;' +
-        'flex-direction:column;padding:12px 8px;opacity:0;transform-origin:50% 100%;">' +
-          '<div style="text-align:center;font-size:12px;font-weight:500;color:#F2F2F2;">Hành động</div>' +
-          '<div style="text-align:center;font-size:10px;color:#FFFFFF66;margin-top:3px;">' +
-          'Thả vào một ô để chạy</div>' +
-          '<div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));' +
-          'grid-template-rows:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px;">' +
-          actTile(ICON.move, "Chuyển") + actTile(ICON.copy, "Sao chép") +
-          actTile(ICON.zip, "Nén ZIP") + actTile(ICON.trashX, "Xoá", true) + '</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>' +
-    // the file riding with the cursor
-    '<div id="ghost" style="position:absolute;left:0;top:0;width:110px;opacity:0;pointer-events:none;">' +
-      '<div style="width:78px;height:78px;border-radius:12px;background:#1C1C20E6;' +
-      'border:1px solid #FFFFFF40;display:flex;align-items:center;justify-content:center;' +
-      'margin:0 auto;box-shadow:0 14px 34px rgba(0,0,0,.6);"><span id="ghostGlyph"></span></div>' +
-      '<div id="ghostName" style="margin-top:6px;font-size:12px;color:#FFFFFF99;' +
-      'text-align:center;"></div></div>' +
-    // cursor
-    '<svg id="cursor" style="position:absolute;left:0;top:0;filter:drop-shadow(0 3px 7px rgba(0,0,0,.75));" ' +
-    'width="36" height="36" viewBox="0 0 24 24">' +
-    '<path d="M 5,2 L 5,19 L 9.5,15 L 12.5,21.5 L 15.5,20 L 12.5,13.8 L 18.5,13.5 Z" ' +
-    'fill="#fff" stroke="#0B0B0E" stroke-width="1.2" stroke-linejoin="round"/></svg>' +
-    // caption
-    '<div id="cap" style="position:absolute;left:50%;top:900px;transform:translateX(-50%);' +
-    'font-size:46px;font-weight:800;letter-spacing:-.02em;color:#F2F2F2;text-align:center;' +
-    'white-space:nowrap;opacity:0;text-shadow:0 4px 24px rgba(0,0,0,.8);"></div>' +
-    // end card
-    '<div id="endcard" style="position:absolute;inset:0;background:#0B0B0E;opacity:0;' +
-    'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;">' +
-      '<div id="endMark" style="opacity:0;">' + mark(112) + '</div>' +
-      '<div id="endT1" style="font-size:58px;font-weight:800;letter-spacing:-.03em;opacity:0;">' +
-      'Miễn phí. Mã nguồn mở.</div>' +
-      '<div id="endT2" style="font-family:JetBrains Mono,monospace;font-size:26px;' +
-      'color:#FFFFFF99;opacity:0;">github.com/wwwxadieu/WinDropOver</div>' +
-    '</div>';
-
-  var el = {};
-  ["folder", "folderBody", "trail", "card", "empty", "sheets", "pill", "count", "actPill",
-   "acts", "ghost", "ghostGlyph", "ghostName", "cursor", "cap", "endcard", "endMark",
-   "endT1", "endT2"].forEach(function (id) { el[id] = document.getElementById(id); });
-  var sheets = [].slice.call(el.sheets.children);
-  var atiles = [].slice.call(el.acts.querySelectorAll(".atile"));
-
-  // Tile slots inside the card, in the card's own coordinates: three per row,
-  // 80 wide with 2px side margins, centred in the 288px content column.
-  function slot(i) {
-    return { x: 32 + (i % 3) * 84, y: 47 + Math.floor(i / 3) * 95 };
-  }
-  sheets.forEach(function (s, i) {
-    var p = slot(i);
-    s.style.left = p.x + "px";
-    s.style.top = p.y + "px";
-  });
-  function sceneOf(lx, ly) { return { x: CX + SCALE * lx, y: CY + SCALE * ly }; }
-
-  // ------------------------------------------------------------------ maths
+  // ---------------------------------------------------------------- maths
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function seg(t, a, b) { return clamp((t - a) / (b - a), 0, 1); }
   function outCubic(p) { return 1 - Math.pow(1 - p, 3); }
   function inOut(p) { return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2; }
   function lerp(a, b, p) { return a + (b - a) * p; }
 
-  var actPos = sceneOf(158, 352);
-  var zipPos = sceneOf(90, 290);
-  var CURSOR_KEYS = [
-    [0,            330,  760],
-    [T.dragEnd,    880,  330],
-    [T.shakeB,     880,  330],
-    [T.cardIn,     880,  330],
-    [T.drops[0],   860,  430],
-    [T.drops[3],   960,  455],
-    [T.outPick,    sceneOf(74, 83).x, sceneOf(74, 83).y],
-    [T.outDrop,    1500, 610],
-    [T.actMove,    960,  520],
-    [T.actOpen,    actPos.x, actPos.y],
-    [T.actDrop,    zipPos.x, zipPos.y],
-    [T.end,        zipPos.x, zipPos.y]
+  function cardPt(lx, ly) { return { x: CX + SCALE * lx, y: CY + SCALE * ly }; }
+  var ACT_PT = cardPt(158, 352), ZIP_PT = cardPt(90, 290), PICK_PT = cardPt(74, 83);
+
+  var KEYS = [
+    [0, 330, 760], [T.dragEnd, 880, 330], [T.shakeB, 880, 330], [T.cardIn, 880, 330],
+    [T.drops[0], 860, 430], [T.drops[3], 960, 455],
+    [T.outPick, PICK_PT.x, PICK_PT.y], [T.outDrop, 1500, 610],
+    [T.actMove, 960, 520], [T.actOpen, ACT_PT.x, ACT_PT.y],
+    [T.actDrop, ZIP_PT.x, ZIP_PT.y], [T.end, ZIP_PT.x, ZIP_PT.y]
   ];
 
   function cursorAt(t) {
     var i = 0;
-    while (i < CURSOR_KEYS.length - 2 && t > CURSOR_KEYS[i + 1][0]) i++;
-    var a = CURSOR_KEYS[i], b = CURSOR_KEYS[i + 1];
-    var p = inOut(seg(t, a[0], b[0]));
+    while (i < KEYS.length - 2 && t > KEYS[i + 1][0]) i++;
+    var a = KEYS[i], b = KEYS[i + 1], p = inOut(seg(t, a[0], b[0]));
     var x = lerp(a[1], b[1], p), y = lerp(a[2], b[2], p);
-    if (t >= T.shakeA && t <= T.shakeB) {           // three decisive passes
-      var k = seg(t, T.shakeA, T.shakeB);
-      var damp = Math.sin(Math.PI * k);
-      x += Math.sin(k * Math.PI * 6) * 78 * damp;
-      y += Math.sin(k * Math.PI * 12) * 9 * damp;
+    if (t >= T.shakeA && t <= T.shakeB) {
+      var q = seg(t, T.shakeA, T.shakeB), damp = Math.sin(Math.PI * q);
+      x += Math.sin(q * Math.PI * 6) * 78 * damp;
+      y += Math.sin(q * Math.PI * 12) * 9 * damp;
     }
     return { x: x, y: y };
   }
 
-  var CAPTIONS = [
-    [200, 2900, "Kéo được rồi."],
-    [3100, 4880, "Giờ thả đâu?"],
-    [5120, 7900, "Lắc chuột."],
-    [8200, 13100, "Thả vào. Tìm chỗ để sau."],
-    [13600, 18500, "Kéo ra là xong."],
-    [19000, 25000, "Chuyển · Sao chép · Nén ZIP · Xoá"]
-  ];
-
-  // ------------------------------------------------------------------ frame
-  function apply(t) {
-    var c = cursorAt(t);
-    el.cursor.style.transform = "translate(" + (c.x - 5) + "px," + (c.y - 2) + "px)";
-
-    // the file that rides with the pointer, and which file it is
-    var gi = -1;
+  function carrying(t) {
     if (t < T.drops[3] + 120) {
-      for (var k = 0; k < 4; k++) { if (t < T.drops[k] + 120) { gi = k; break; } }
-    } else if (t >= T.outPick && t < T.outDrop + 150) {
-      gi = 1;                                    // the sheet that gets dragged back out
-    } else if (t >= T.actMove - 1200 && t < T.actDrop + 250) {
-      gi = 0;                                    // picked up again, to aim at an action tile
+      for (var k = 0; k < 4; k++) if (t < T.drops[k] + 120) return k;
     }
-    if (gi >= 0) {
-      var f = FILES[gi];
-      if (el.ghost.dataset.f !== String(gi)) {
-        el.ghost.dataset.f = String(gi);
-        el.ghostGlyph.innerHTML = glyph(f[1], f[2], 40);
-        el.ghostName.textContent = f[0];
-      }
-      el.ghost.style.opacity = "1";
-      el.ghost.style.transform = "translate(" + (c.x - 20) + "px," + (c.y + 10) + "px)";
-    } else {
-      el.ghost.style.opacity = "0";
-    }
+    if (t >= T.outPick && t < T.outDrop + 150) return 1;
+    if (t >= T.actMove - 1200 && t < T.actDrop + 250) return 0;
+    return -1;
+  }
 
-    // shake trail follows the pointer while the shake is happening
-    var sh = t >= T.shakeA && t <= T.shakeB ? Math.sin(Math.PI * seg(t, T.shakeA, T.shakeB)) : 0;
-    el.trail.style.opacity = String(sh * 0.9);
+  // ---------------------------------------------------------------- drawing
+  function rr(c, x, y, w, h, r) {
+    c.beginPath();
+    if (c.roundRect) { c.roundRect(x, y, w, h, r); return; }
+    r = Math.min(r, w / 2, h / 2);
+    c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
 
-    // the card: fade 120ms, scale 0.92 to 1 and rise 10px to 0, both over 190ms
-    if (t < T.cardIn) {
-      el.card.style.opacity = "0";
-    } else {
-      var fp = seg(t, T.cardIn, T.cardIn + CARD_FADE);
-      var gp = outCubic(seg(t, T.cardIn, T.cardIn + CARD_GROW));
-      el.card.style.opacity = String(fp);
-      el.card.style.transform =
-        "translateY(" + lerp(10, 0, gp) + "px) scale(" + SCALE * lerp(0.92, 1, gp) + ")";
-    }
+  function icon(c, name, x, y, size, color, lw) {
+    c.save(); c.translate(x, y); c.scale(size / 24, size / 24);
+    c.strokeStyle = color; c.lineWidth = (lw || 1.8) * 24 / size * (size / 24);
+    c.lineWidth = lw || 1.8; c.lineCap = "round"; c.lineJoin = "round";
+    c.stroke(PATH[name]); c.restore();
+  }
 
-    // sheets arrive one at a time: pop 0.55 to 1 over 260ms, fade over 150ms
+  function fileGlyph(c, x, y, size, ext, tint) {
+    c.save(); c.translate(x, y); c.scale(size / 40, size / 40);
+    c.fillStyle = tint; c.globalAlpha = 0.16; c.fill(PAGE); c.globalAlpha = 1;
+    c.strokeStyle = tint; c.lineWidth = 1.6; c.lineJoin = "round";
+    c.stroke(PAGE); c.stroke(FOLD);
+    c.fillStyle = tint; c.font = '700 8.5px ' + MONO; c.textAlign = "center";
+    c.fillText(ext, 21, 30);
+    c.restore();
+  }
+
+  function pointer(c, x, y, size, alpha) {
+    c.save(); c.globalAlpha = alpha === undefined ? 1 : alpha;
+    c.translate(x, y); c.scale(size / 24, size / 24);
+    c.fillStyle = "#fff"; c.strokeStyle = "#0B0B0E"; c.lineWidth = 1.2; c.lineJoin = "round";
+    c.fill(CURSOR); c.stroke(CURSOR); c.restore();
+  }
+
+  function label(c, str, x, y, font, color, align) {
+    c.font = font; c.fillStyle = color; c.textAlign = align || "left";
+    c.textBaseline = "alphabetic"; c.fillText(str, x, y);
+  }
+
+  // The card, drawn in the app's own 316x376 coordinates so every number here is
+  // the number in Views/BubbleWindow.xaml.
+  function drawCard(c, t) {
+    var appear = t >= T.cardIn;
+    if (!appear) return;
+    var fp = seg(t, T.cardIn, T.cardIn + CARD_FADE);
+    var gp = outCubic(seg(t, T.cardIn, T.cardIn + CARD_GROW));
+    var s = SCALE * lerp(0.92, 1, gp);
+
+    c.save();
+    c.globalAlpha = fp;
+    c.translate(CX, CY + lerp(10, 0, gp));
+    c.scale(s, s);
+
+    // the blurred desktop the glass samples, approximated as two soft blooms
+    var g1 = c.createRadialGradient(95, 94, 0, 95, 94, 150);
+    g1.addColorStop(0, "rgba(59,130,246,.36)"); g1.addColorStop(1, "rgba(59,130,246,0)");
+    c.fillStyle = g1; c.fillRect(-40, -40, 396, 456);
+    var g2 = c.createRadialGradient(237, 300, 0, 237, 300, 170);
+    g2.addColorStop(0, "rgba(124,58,237,.30)"); g2.addColorStop(1, "rgba(124,58,237,0)");
+    c.fillStyle = g2; c.fillRect(-40, -40, 396, 456);
+
+    c.save();
+    c.shadowColor = "rgba(0,0,0,.6)"; c.shadowBlur = 46; c.shadowOffsetY = 18;
+    rr(c, 0, 0, 316, 376, 14); c.fillStyle = "rgba(28,28,32,.855)"; c.fill();
+    c.restore();
+
+    rr(c, 0, 0, 316, 376, 14); c.save(); c.clip();
+    var sh = c.createLinearGradient(0, 0, 200, 260);
+    sh.addColorStop(0, "rgba(255,255,255,.10)"); sh.addColorStop(.45, "rgba(255,255,255,0)");
+    c.fillStyle = sh; c.fillRect(0, 0, 316, 376);
+    c.restore();
+    rr(c, .5, .5, 315, 375, 14); c.strokeStyle = "rgba(255,255,255,.25)"; c.lineWidth = 1; c.stroke();
+
+    // header: two 28px circles and the 34x4 grab bar
+    c.fillStyle = "rgba(255,255,255,.08)";
+    c.beginPath(); c.arc(28, 26, 14, 0, 6.284); c.fill();
+    c.beginPath(); c.arc(288, 26, 14, 0, 6.284); c.fill();
+    icon(c, "close", 28 - 7.5, 26 - 7.5, 15, "rgba(255,255,255,.6)");
+    icon(c, "trash", 288 - 7.5, 26 - 7.5, 15, "#EF4444");
+    rr(c, 141, 24, 34, 4, 2); c.fillStyle = "rgba(255,255,255,.25)"; c.fill();
+
+    // sheets, or the empty state before the first one lands
     var landed = 0;
-    sheets.forEach(function (s, i) {
-      var t0 = T.drops[i];
-      var gone = i === 1 && t >= T.outPick;          // the one dragged back out
-      if (t < t0 || gone) { s.style.opacity = "0"; return; }
+    for (var i = 0; i < 4; i++) {
+      var t0 = T.drops[i], gone = i === 1 && t >= T.outPick;
+      if (t < t0 || gone) continue;
       landed++;
-      var pop = outCubic(seg(t, t0, t0 + SHEET_ARRIVE));
-      s.style.opacity = String(seg(t, t0, t0 + SHEET_FADE));
-      s.style.transform = "scale(" + lerp(0.55, 1, pop) + ")";
-      s.style.transformOrigin = "50% 50%";
-    });
-    el.empty.style.opacity = landed ? "0" : String(seg(t, T.cardIn, T.cardIn + CARD_FADE));
-    el.pill.style.opacity = landed ? "1" : "0";
-    el.count.textContent = landed + " mục";
+      var pop = lerp(0.55, 1, outCubic(seg(t, t0, t0 + SHEET_ARRIVE)));
+      var sx = 32 + (i % 3) * 84, sy = 47 + Math.floor(i / 3) * 95;
+      c.save();
+      c.globalAlpha = fp * seg(t, t0, t0 + SHEET_FADE);
+      c.translate(sx + 40, sy + 36); c.scale(pop, pop); c.translate(-(sx + 40), -(sy + 36));
+      rr(c, sx + 4, sy, 72, 72, 8); c.fillStyle = "rgba(255,255,255,.08)"; c.fill();
+      fileGlyph(c, sx + 20, sy + 16, 40, FILES[i][1], FILES[i][2]);
+      label(c, FILES[i][0], sx + 40, sy + 86, '400 10px ' + SANS, "rgba(255,255,255,.6)", "center");
+      c.restore();
+    }
+    if (!landed) {
+      rr(c, 130, 150, 56, 56, 14);
+      c.strokeStyle = "rgba(255,255,255,.15)"; c.lineWidth = 1.5;
+      c.setLineDash([5, 4]); c.stroke(); c.setLineDash([]);
+      icon(c, "bolt", 146, 166, 24, "rgba(255,255,255,.4)");
+      label(c, "Thả tệp vào đây", 158, 232, '400 13px ' + SANS, "#F2F2F2", "center");
+      label(c, "từ bất kỳ thư mục hay ứng dụng nào", 158, 250, '400 11px ' + SANS,
+            "rgba(255,255,255,.4)", "center");
+    }
 
-    // the action panel: overlay fades 110ms, grows 0.90 to 1 on Y and 0.96 on X over 170ms,
-    // and the four tiles enter 40ms apart, bottom row first
-    if (t < T.actOpen) {
-      el.acts.style.opacity = "0";
-      el.actPill.style.opacity = "1";
+    var actOpen = t >= T.actOpen;
+    if (landed && !actOpen) {
+      c.font = '400 11px ' + SANS;
+      var txt = landed + " mục", w = c.measureText(txt).width + 20 + 14;
+      rr(c, 158 - w / 2, 319, w, 23, 13); c.fillStyle = "rgba(255,255,255,.08)"; c.fill();
+      label(c, txt, 158 - w / 2 + 12, 334, '400 11px ' + SANS, "#F2F2F2");
+      icon(c, "chevron", 158 + w / 2 - 20, 324, 14, "rgba(255,255,255,.4)", 2);
+    }
+    if (!actOpen) {
+      c.font = '400 11px ' + SANS;
+      var w2 = c.measureText("Hành động").width + 24 + 21;
+      rr(c, 158 - w2 / 2, 341, w2, 23, 13); c.fillStyle = "rgba(255,255,255,.08)"; c.fill();
+      icon(c, "bolt", 158 - w2 / 2 + 12, 345, 14, "rgba(255,255,255,.6)");
+      label(c, "Hành động", 158 - w2 / 2 + 33, 356, '400 11px ' + SANS, "#F2F2F2");
     } else {
       var ap = outCubic(seg(t, T.actOpen, T.actOpen + ACT_OPEN));
-      el.acts.style.opacity = String(seg(t, T.actOpen, T.actOpen + 110));
-      el.acts.style.transform = "scale(" + lerp(0.96, 1, ap) + "," + lerp(0.90, 1, ap) + ")";
-      el.actPill.style.opacity = "0";
-      atiles.forEach(function (tile, i) {
-        var order = i < 2 ? i + 2 : i - 2;          // bottom row first, nearest the pointer
-        var d = T.actOpen + ACT_TILE_STEP * order;
-        tile.style.opacity = String(seg(t, d, d + ACT_TILE_FADE));
-        tile.style.transform =
-          "translateY(" + lerp(12, 0, outCubic(seg(t, d, d + ACT_TILE_RISE))) + "px)";
-        var hot = i === 2 && t >= T.actDrop - 500 && t < T.actDrop + 700;
-        tile.style.background = hot ? "#FFFFFF3D" : "#FFFFFF14";
-        tile.style.borderColor = hot ? "#FFFFFFA6" : (i === 3 ? "#EF444440" : "#FFFFFF26");
-      });
+      c.save();
+      c.globalAlpha = fp * seg(t, T.actOpen, T.actOpen + 110);
+      c.translate(158, 364); c.scale(lerp(.96, 1, ap), lerp(.90, 1, ap)); c.translate(-158, -364);
+      rr(c, 14, 46, 288, 318, 12);
+      c.fillStyle = "rgba(28,28,32,.35)"; c.fill();
+      c.strokeStyle = "rgba(255,255,255,.15)"; c.lineWidth = 1; c.stroke();
+      label(c, "Hành động", 158, 71, '500 12px ' + SANS, "#F2F2F2", "center");
+      label(c, "Thả vào một ô để chạy", 158, 86, '400 10px ' + SANS, "rgba(255,255,255,.4)", "center");
+      var tiles = [["move", "Chuyển", 0], ["copy", "Sao chép", 0], ["zip", "Nén ZIP", 0],
+                   ["trashX", "Xoá", 1]];
+      for (var j = 0; j < 4; j++) {
+        var order = j < 2 ? j + 2 : j - 2, d0 = T.actOpen + ACT_STEP * order;
+        var col = j % 2, row = (j / 2) | 0;
+        var tx = 22 + col * 140, ty = 103 + row * 129, tw = 132, th = 121;
+        var hot = j === 2 && t >= T.actDrop - 500 && t < T.actDrop + 700;
+        var dangerTile = tiles[j][2];
+        c.save();
+        c.globalAlpha = fp * seg(t, d0, d0 + ACT_FADE);
+        c.translate(0, lerp(12, 0, outCubic(seg(t, d0, d0 + ACT_RISE))));
+        rr(c, tx, ty, tw, th, 12);
+        c.fillStyle = hot ? "rgba(255,255,255,.24)" : "rgba(255,255,255,.08)"; c.fill();
+        c.strokeStyle = hot ? "rgba(255,255,255,.65)"
+                            : (dangerTile ? "rgba(239,68,68,.25)" : "rgba(255,255,255,.15)");
+        c.lineWidth = 1; c.stroke();
+        var tint = dangerTile ? "#EF4444" : "#F2F2F2";
+        icon(c, tiles[j][0], tx + tw / 2 - 13, ty + th / 2 - 22, 26, tint);
+        label(c, tiles[j][1], tx + tw / 2, ty + th / 2 + 28, '400 11px ' + SANS, tint, "center");
+        c.restore();
+      }
+      c.restore();
+    }
+    c.restore();
+  }
+
+  function drawScene(c, t, cropW) {
+    // ground
+    var g = c.createRadialGradient(960, 410, 0, 960, 410, 1150);
+    g.addColorStop(0, "#191922"); g.addColorStop(.7, "#0B0B0E");
+    c.fillStyle = g; c.fillRect(0, 0, 1920, 1080);
+
+    // two desktop icons, so the stage reads as a desktop and not a slide
+    for (var i = 0; i < 2; i++) {
+      var dy = 150 + i * 118;
+      fileGlyph(c, 145, dy, 54, FILES[i][1], FILES[i][2]);
+      label(c, FILES[i][0], 172, dy + 74, '400 13px ' + SANS, "rgba(255,255,255,.6)", "center");
     }
 
-    // the destination folder, and the file that lands in it
-    el.folder.style.opacity = String(seg(t, T.outPick - 600, T.outPick));
-    var inFolder = t >= T.outDrop;
-    if (el.folderBody.dataset.on !== String(inFolder)) {
-      el.folderBody.dataset.on = String(inFolder);
-      el.folderBody.innerHTML = inFolder
-        ? '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:86px;">' +
-          glyph(FILES[1][1], FILES[1][2], 44) +
-          '<div style="font-size:12px;color:#FFFFFF99;">' + FILES[1][0] + '</div></div>'
-        : "";
+    // destination folder
+    var fo = seg(t, T.outPick - 600, T.outPick);
+    if (fo > 0) {
+      c.save(); c.globalAlpha = fo;
+      c.shadowColor = "rgba(0,0,0,.55)"; c.shadowBlur = 40; c.shadowOffsetY = 16;
+      rr(c, 1330, 470, 400, 270, 12); c.fillStyle = "rgba(22,22,27,.9)"; c.fill();
+      c.shadowColor = "transparent";
+      c.strokeStyle = "rgba(255,255,255,.15)"; c.lineWidth = 1; c.stroke();
+      c.beginPath(); c.moveTo(1330, 508); c.lineTo(1730, 508);
+      c.strokeStyle = "rgba(255,255,255,.08)"; c.stroke();
+      label(c, "Tài liệu › Quý 3", 1344, 494, '400 13px ' + SANS, "rgba(255,255,255,.6)");
+      if (t >= T.outDrop) {
+        fileGlyph(c, 1360, 524, 44, FILES[1][1], FILES[1][2]);
+        label(c, FILES[1][0], 1382, 590, '400 12px ' + SANS, "rgba(255,255,255,.6)", "center");
+      }
+      c.restore();
     }
 
-    // captions
+    drawCard(c, t);
+
+    var p = cursorAt(t);
+
+    // the file riding with the pointer
+    var gi = carrying(t);
+    if (gi >= 0) {
+      c.save();
+      c.shadowColor = "rgba(0,0,0,.6)"; c.shadowBlur = 30; c.shadowOffsetY = 12;
+      rr(c, p.x - 5, p.y + 12, 78, 78, 12); c.fillStyle = "rgba(28,28,32,.9)"; c.fill();
+      c.shadowColor = "transparent";
+      c.strokeStyle = "rgba(255,255,255,.25)"; c.lineWidth = 1; c.stroke();
+      fileGlyph(c, p.x + 15, p.y + 32, 40, FILES[gi][1], FILES[gi][2]);
+      label(c, FILES[gi][0], p.x + 34, p.y + 108, '400 12px ' + SANS, "rgba(255,255,255,.6)", "center");
+      c.restore();
+    }
+
+    // the shake, as the pointer's own afterimages
+    var shk = t >= T.shakeA && t <= T.shakeB ? Math.sin(Math.PI * seg(t, T.shakeA, T.shakeB)) : 0;
+    if (shk > 0.02) {
+      var drops = [10, -8, 7];
+      for (var gI = 3; gI >= 1; gI--) {
+        pointer(c, p.x - 34 * gI, p.y + drops[gI - 1], 36, [0, .42, .22, .11][gI] * shk);
+      }
+      c.save(); c.globalAlpha = shk * .7;
+      c.strokeStyle = "#3B82F6"; c.lineWidth = 3; c.lineCap = "round";
+      c.beginPath();
+      c.moveTo(p.x - 92, p.y - 6);
+      c.bezierCurveTo(p.x - 66, p.y - 26, p.x - 32, p.y - 26, p.x - 8, p.y - 8);
+      c.stroke(); c.restore();
+    }
+    pointer(c, p.x - 5, p.y - 2, 36);
+
+    // caption, shrunk to fit whichever crop is being rendered
     var text = "", op = 0;
-    for (var i = 0; i < CAPTIONS.length; i++) {
-      var cp = CAPTIONS[i];
+    for (var ci = 0; ci < CAPTIONS.length; ci++) {
+      var cp = CAPTIONS[ci];
       if (t >= cp[0] - 220 && t <= cp[1] + 220) {
         text = cp[2];
         op = Math.min(seg(t, cp[0] - 220, cp[0]), 1 - seg(t, cp[1], cp[1] + 220));
       }
     }
-    if (el.cap.textContent !== text) el.cap.textContent = text;
-    el.cap.style.opacity = String(op);
+    if (text && op > 0) {
+      var size = 46, max = cropW - 80;
+      c.font = '800 ' + size + 'px ' + SANS;
+      var w = c.measureText(text).width;
+      if (w > max) size = Math.max(20, Math.floor(size * max / w));
+      c.save();
+      c.globalAlpha = op;
+      c.shadowColor = "rgba(0,0,0,.8)"; c.shadowBlur = 24;
+      label(c, text, 960, 916, '800 ' + size + 'px ' + SANS, "#F2F2F2", "center");
+      c.restore();
+    }
 
     // end card
     var ep = seg(t, T.end, T.end + 420);
-    el.endcard.style.opacity = String(ep);
-    el.endMark.style.opacity = String(seg(t, T.end + 250, T.end + 750));
-    el.endMark.style.transform = "scale(" + lerp(0.9, 1, outCubic(seg(t, T.end + 250, T.end + 900))) + ")";
-    el.endT1.style.opacity = String(seg(t, T.end + 600, T.end + 1100));
-    el.endT2.style.opacity = String(seg(t, T.end + 950, T.end + 1450));
+    if (ep > 0) {
+      c.save(); c.globalAlpha = ep;
+      c.fillStyle = "#0B0B0E"; c.fillRect(0, 0, 1920, 1080);
+      var mp = outCubic(seg(t, T.end + 250, T.end + 900)), mo = seg(t, T.end + 250, T.end + 750);
+      c.save(); c.globalAlpha = ep * mo;
+      c.translate(960, 430); c.scale(lerp(.9, 1, mp) * 1.12, lerp(.9, 1, mp) * 1.12);
+      c.translate(-50, -50);
+      rr(c, 6, 6, 88, 88, 22); c.fillStyle = "#3B82F6"; c.fill();
+      rr(c, 43.5, 18.5, 13, 28, 5.5); c.fillStyle = "#fff"; c.fill();
+      c.beginPath(); c.moveTo(31.5, 42); c.lineTo(68.5, 42); c.lineTo(50, 65.5); c.closePath(); c.fill();
+      rr(c, 20.5, 71.5, 59, 13.5, 6); c.fillStyle = "rgba(255,255,255,.8)"; c.fill();
+      c.restore();
+      var s1 = seg(t, T.end + 600, T.end + 1100), s2 = seg(t, T.end + 950, T.end + 1450);
+      c.globalAlpha = ep * s1;
+      var fs = 58, m2 = cropW - 90;
+      c.font = '800 ' + fs + 'px ' + SANS;
+      var w2 = c.measureText("Miễn phí. Mã nguồn mở.").width;
+      if (w2 > m2) fs = Math.floor(fs * m2 / w2);
+      label(c, "Miễn phí. Mã nguồn mở.", 960, 600, '800 ' + fs + 'px ' + SANS, "#F2F2F2", "center");
+      c.globalAlpha = ep * s2;
+      var fs2 = 26;
+      c.font = '500 ' + fs2 + 'px ' + MONO;
+      var w3 = c.measureText("github.com/wwwxadieu/WinDropOver").width;
+      if (w3 > m2) fs2 = Math.floor(fs2 * m2 / w3);
+      label(c, "github.com/wwwxadieu/WinDropOver", 960, 660,
+            '500 ' + fs2 + 'px ' + MONO, "rgba(255,255,255,.6)", "center");
+      c.restore();
+    }
   }
 
-  // ------------------------------------------------------------- transport
-  var playing = false, clock = 0, last = 0, speed = 1;
-  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // ---------------------------------------------------------------- stage
+  var canvas = document.getElementById("stage"), ctx = canvas.getContext("2d");
+  // Each aspect is a real crop of the same 1920x1080 staging, re-drawn at full
+  // resolution rather than upscaled from a cropped bitmap.
+  var CROPS = {
+    "16:9": { cw: 1920, ch: 1080, ow: 1920, oh: 1080 },
+    "1:1":  { cw: 1080, ch: 1080, ow: 1080, oh: 1080 },
+    "9:16": { cw: 607.5, ch: 1080, ow: 1080, oh: 1920 }
+  };
+  var ar = "16:9";
 
-  var $play = document.getElementById("play"),
-      $scrub = document.getElementById("scrub"),
-      $clock = document.getElementById("clock"),
-      $frame = document.getElementById("frame"),
-      $viewport = document.getElementById("viewport");
+  function sizeCanvas() {
+    var b = CROPS[ar];
+    canvas.width = b.ow; canvas.height = b.oh;
+    document.getElementById("frame").style.maxWidth =
+      Math.min(1132, b.ow / b.oh * Math.max(320, window.innerHeight * 0.62)) + "px";
+  }
+
+  function render(t) {
+    var b = CROPS[ar], s = b.ow / b.cw;
+    var cropX = (1920 - b.cw) / 2, cropY = (1080 - b.ch) / 2;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(s, 0, 0, s, -cropX * s, -cropY * s);
+    drawScene(ctx, t, b.cw);
+  }
+
+  // ---------------------------------------------------------------- transport
+  var playing = false, clock = 0, last = 0, recording = false, onEnd = null;
+  var $play = document.getElementById("play"), $scrub = document.getElementById("scrub"),
+      $clock = document.getElementById("clock"), $rec = document.getElementById("rec"),
+      $status = document.getElementById("status");
 
   function fmt(ms) { return (ms / 1000).toFixed(1).replace(".", ","); }
+  function setPlaying(on) { playing = on; last = 0; $play.textContent = on ? "Tạm dừng" : "Chạy"; }
 
   function tick(now) {
     if (playing) {
       if (!last) last = now;
-      clock += (now - last) * speed;
-      last = now;
-      if (clock >= TOTAL) { clock = 0; }          // loop, so a recording can run long
+      clock += now - last; last = now;
+      if (clock >= TOTAL) {
+        if (recording) { clock = TOTAL; setPlaying(false); if (onEnd) { var f = onEnd; onEnd = null; f(); } }
+        else clock = 0;
+      }
       $scrub.value = String(Math.round(clock));
       $clock.textContent = fmt(clock) + " / 30,0 s";
       markShot(clock);
-    } else { last = 0; }
-    apply(clock);
+    } else last = 0;
+    render(clock);
     requestAnimationFrame(tick);
-  }
-
-  function setPlaying(on) {
-    playing = on; last = 0;
-    $play.textContent = on ? "Tạm dừng" : "Chạy";
   }
 
   $play.addEventListener("click", function () { setPlaying(!playing); });
@@ -593,84 +555,151 @@
   $scrub.addEventListener("input", function () {
     clock = Number($scrub.value); $clock.textContent = fmt(clock) + " / 30,0 s"; markShot(clock);
   });
-
-  // aspect: a real crop of the same 16:9 scene, which is what happens in an editor
-  var AR = { "16:9": [1920, 1080], "1:1": [1080, 1080], "9:16": [607, 1080] };
-  var ar = "16:9";
-  function layout() {
-    var box = AR[ar];
-    var rec = document.body.classList.contains("rec");
-    var maxW = $frame.parentElement.clientWidth;
-    var maxH = rec ? window.innerHeight : Math.max(320, window.innerHeight * 0.66);
-    var s = Math.min(maxW / box[0], maxH / box[1]);
-    $frame.style.width = (box[0] * s) + "px";
-    $frame.style.margin = "0 auto";
-    $viewport.style.width = (box[0] * s) + "px";
-    $viewport.style.height = (box[1] * s) + "px";
-    scene.style.transform = "scale(" + s + ")";
-    scene.style.left = (-(1920 - box[0]) / 2 * s) + "px";
-    scene.style.top = (-(1080 - box[1]) / 2 * s) + "px";
-    $frame.dataset.dim = box[0] + " × " + box[1];
-  }
   [].forEach.call(document.querySelectorAll(".ar"), function (b) {
     b.addEventListener("click", function () {
+      if (recording) return;
       ar = b.dataset.ar;
       [].forEach.call(document.querySelectorAll(".ar"), function (o) {
         o.setAttribute("aria-pressed", String(o === b));
       });
-      layout();
-    });
-  });
-  [].forEach.call(document.querySelectorAll(".sp"), function (b) {
-    b.addEventListener("click", function () {
-      speed = Number(b.dataset.sp);
-      [].forEach.call(document.querySelectorAll(".sp"), function (o) {
-        o.setAttribute("aria-pressed", String(o === b));
-      });
+      sizeCanvas(); render(clock);
     });
   });
 
-  // shot list
-  var $shots = document.getElementById("shots");
+  var $shots = document.getElementById("shots"), shotEls = [];
   SHOTS.forEach(function (s, i) {
     var b = document.createElement("button");
     b.className = "shot";
-    b.innerHTML = '<span class="t">' + fmt(s.a) + "s → " + fmt(s.b) + 's</span>' +
-      '<span class="n">' + (i + 1) + ". " + s.n + '</span><span class="d">' + s.d + "</span>";
+    b.innerHTML = '<span class="t">' + fmt(s.a) + "s → " + fmt(s.b) + 's</span><span class="n">' +
+      (i + 1) + ". " + s.n + '</span><span class="d">' + s.d + "</span>";
     b.addEventListener("click", function () {
-      clock = s.a; $scrub.value = String(s.a);
-      $clock.textContent = fmt(clock) + " / 30,0 s"; markShot(clock);
+      if (recording) return;
+      clock = s.a; $scrub.value = String(s.a); $clock.textContent = fmt(clock) + " / 30,0 s";
+      markShot(clock);
     });
-    $shots.appendChild(b);
+    $shots.appendChild(b); shotEls.push(b);
   });
-  var shotEls = [].slice.call($shots.children);
   function markShot(t) {
     for (var i = 0; i < SHOTS.length; i++) {
       shotEls[i].setAttribute("aria-current", String(t >= SHOTS[i].a && t < SHOTS[i].b));
     }
   }
 
-  // recording mode
-  function setRec(on) {
-    document.body.classList.toggle("rec", on);
-    layout();
-  }
-  document.getElementById("rec").addEventListener("click", function () { setRec(true); });
-  document.getElementById("exit").addEventListener("click", function () { setRec(false); });
+  // ---------------------------------------------------------------- recording
+  // mp4 first: Instagram will not take webm, and recent Chrome and Edge can encode
+  // mp4 directly. webm is the fallback, with the conversion caveat said out loud.
+  var MIMES = ["video/mp4;codecs=avc1.42E01E", "video/mp4",
+               "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
 
-  document.addEventListener("keydown", function (e) {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") {
-      if (e.key !== " " && e.key !== "Escape") return;
+  function pickMime() {
+    if (typeof MediaRecorder === "undefined") return null;
+    for (var i = 0; i < MIMES.length; i++) {
+      if (MediaRecorder.isTypeSupported(MIMES[i])) return MIMES[i];
     }
-    if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
-    else if (e.key === "r" || e.key === "R") { clock = 0; $scrub.value = "0"; markShot(0); }
-    else if (e.key === "Escape") { setRec(false); }
+    return null;
+  }
+
+  function say(msg, isErr) {
+    $status.innerHTML = msg;
+    $status.className = isErr ? "err" : "";
+  }
+
+  async function offer(blob, ext) {
+    var name = "windropover-" + ar.replace(":", "x") + "." + ext;
+    var dl = null;
+    try { if (window.claude && window.claude.use) dl = await window.claude.use("downloads"); }
+    catch (e) { dl = null; }
+    if (dl) {
+      try {
+        await dl.save({ filename: name, data: blob });
+        say("Đã lưu <b>" + name + "</b>.");
+      } catch (e) {
+        var code = (e && e.code) || "unavailable";
+        if (code === "declined") say("Bạn đã bỏ qua hộp thoại lưu. Bấm Ghi video lần nữa nếu muốn lại.");
+        else if (code === "too_large")
+          say("Tệp vượt quá 16 MB. Ghi lại ở khung 1:1 hoặc 16:9 cho nhẹ hơn.", true);
+        else say("Không lưu được (" + code + "). Mở tệp promo/recording-stage.html trong repo " +
+                 "bằng trình duyệt thì nút này tải thẳng về máy.", true);
+      }
+      return;
+    }
+    // Opened as a local file: the browser can take the download directly.
+    try {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = name; document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      say("Đã tải <b>" + name + "</b> về máy.");
+    } catch (e) {
+      say("Trình duyệt chặn tải tệp ở trang này.", true);
+    }
+  }
+
+  $rec.addEventListener("click", async function () {
+    if (recording) return;
+    var mime = pickMime();
+    if (!mime) {
+      say("Trình duyệt này không ghi được video. Dùng Chrome hoặc Edge bản mới, " +
+          "hoặc thu màn hình bằng Win + Alt + R.", true);
+      return;
+    }
+    var ext = mime.indexOf("mp4") >= 0 ? "mp4" : "webm";
+    recording = true;
+    $rec.classList.add("rec-on"); $rec.textContent = "Đang ghi…";
+    $play.disabled = $scrub.disabled = true;
+    say("Đang ghi 30 giây ở " + canvas.width + " × " + canvas.height + ", định dạng ." + ext + " …");
+
+    var chunks = [], rec;
+    try {
+      rec = new MediaRecorder(canvas.captureStream(60),
+                              { mimeType: mime, videoBitsPerSecond: 3000000 });
+    } catch (e) {
+      recording = false; $rec.classList.remove("rec-on"); $rec.textContent = "Ghi video";
+      $play.disabled = $scrub.disabled = false;
+      say("Không khởi động được bộ ghi: " + e.message, true);
+      return;
+    }
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    var stopped = new Promise(function (res) { rec.onstop = res; });
+    var finished = new Promise(function (res) { onEnd = res; });
+
+    clock = 0; markShot(0); setPlaying(true);
+    rec.start(1000);
+    await finished;
+    rec.stop();
+    await stopped;
+
+    recording = false;
+    $rec.classList.remove("rec-on"); $rec.textContent = "Ghi video";
+    $play.disabled = $scrub.disabled = false;
+
+    var blob = new Blob(chunks, { type: mime });
+    // A recorder can hand back nothing at all — a background tab throttles the frame
+    // loop, or the encoder never got a frame. Saying so beats saving an empty file.
+    if (!chunks.length || blob.size < 4096) {
+      say("Bộ ghi không nhận được khung hình nào, tệp rỗng nên không lưu. Thường là do tab bị " +
+          "đẩy xuống nền — để trang này hiện lên trước rồi ghi lại. Không được nữa thì thu màn " +
+          "hình bằng <b>Win + Alt + R</b>.", true);
+      return;
+    }
+    say("Xong — " + (blob.size / 1048576).toFixed(1).replace(".", ",") + " MB. Đang mở hộp thoại lưu…");
+    await offer(blob, ext);
   });
 
-  window.addEventListener("resize", layout);
-  layout();
-  markShot(0);
+  document.addEventListener("keydown", function (e) {
+    if (recording) return;
+    if (e.target.tagName === "INPUT" && e.key !== " ") return;
+    if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === "r" || e.key === "R") { clock = 0; $scrub.value = "0"; markShot(0); }
+  });
+
+  window.addEventListener("resize", sizeCanvas);
+  sizeCanvas(); markShot(0);
   requestAnimationFrame(tick);
-  if (!reduced) setPlaying(true);
+
+  // Text only measures correctly once the faces are in; draw immediately either way.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { render(clock); });
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPlaying(true);
 })();
 </script>

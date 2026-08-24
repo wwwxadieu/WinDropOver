@@ -9,10 +9,14 @@ mở gì. Sửa lại thì dựng lại rồi xuất đè lên (xem *Dựng lạ
 
 ## Mở ngay
 
-- **`recording-stage.html`** — mở bằng trình duyệt. Bảy cảnh giới thiệu chạy đúng thời lượng
-  chuyển động thật của app. Bấm *Chế độ quay* để giấu phần điều khiển, rồi thu màn hình: đó là
-  video. Ba nút khung hình cắt thật 1:1 và 9:16 để xem trước cảnh nào bị mất hai mép.
-  Không cần cài gì, không gọi mạng ngoài trừ Google Fonts.
+- **`recording-stage.html`** — mở bằng trình duyệt rồi bấm **Ghi video**. Trang vẽ bảy cảnh
+  lên canvas, đóng thành tệp và tải về. Không cần phần mềm quay màn hình, và video không lẫn
+  con trỏ thật của bạn. Ba nút khung hình cho ra 16:9, 1:1 hoặc 9:16 — mỗi tỉ lệ vẽ lại ở độ
+  phân giải đầy đủ chứ không phóng to ảnh cắt.
+
+  Ưu tiên xuất `.mp4`; trình duyệt nào không mã hoá được mp4 thì ra `.webm`, và Instagram không
+  nhận webm nên phải qua một lần dựng lại. Nếu nút này hỏng vì lý do gì, cách dự phòng luôn dùng
+  được trên Windows là **Win + Alt + R** (Game Bar) — file nằm ở `Videos\Captures`.
 
 Các tệp `.dc.html` là từng khung ảnh, mở riêng lẻ bằng trình duyệt cũng xem được.
 
@@ -64,3 +68,7 @@ phía sau — ảnh chụp từ máy đang chạy app sẽ thuyết phục hơn 
 `Views/BubbleWindow.xaml.cs`: thẻ mở 190ms, chồng file 260ms, bảng hành động 170ms với bốn ô
 lệch nhau 40ms. Nếu đổi các con số đó trong app thì đổi luôn ở đầu tệp, không thì bản dựng mẫu
 sẽ nói sai về sản phẩm.
+
+Cả sân khấu vẽ bằng Canvas 2D chứ không phải DOM — chỉ vì canvas mới `captureStream()` được để
+`MediaRecorder` đóng thành tệp. Một hàm `drawScene()` duy nhất lo cả phần xem lẫn phần ghi, nên
+cái bạn thấy đúng bằng cái được ghi.
