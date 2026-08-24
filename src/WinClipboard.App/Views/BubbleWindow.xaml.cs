@@ -513,14 +513,18 @@ public partial class BubbleWindow : Window
         }
     }
 
-    private void OnStackPreviewMouseDown(object sender, MouseButtonEventArgs e) => _dragStartPoint = e.GetPosition(null);
+    private void OnStackPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStartPoint = e.GetPosition(null);
+        _dropLandedOnShelf = false;
+    }
 
     /// <summary>
     /// Dragging the stack takes the whole shelf, which is the gesture the pile is drawn to invite:
     /// the point of collecting five files in one place is to move five files in one motion. The
     /// detail list is still where a single item can be picked out on its own.
     /// </summary>
-    private void OnStackMouseMove(object sender, MouseEventArgs e)
+    private async void OnStackMouseMove(object sender, MouseEventArgs e)
     {
         if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
         {
@@ -535,10 +539,15 @@ public partial class BubbleWindow : Window
         _dragStartPoint = null;
 
         var data = BuildStackDragData();
-        if (data is not null)
+        if (data is null)
         {
-            DragDrop.DoDragDrop(StackView, data, DragDropEffects.Copy | DragDropEffects.Move);
+            return;
         }
+
+        // Captured before the drag: ReloadAsync may replace _currentViews while it is in progress.
+        var draggedIds = _currentViews.Select(v => v.Model.Id).ToList();
+        var effect = DragDrop.DoDragDrop(StackView, data, DragDropEffects.Copy | DragDropEffects.Move);
+        await CompleteDragOutAsync(effect, draggedIds);
     }
 
     /// <summary>Every file the shelf holds as one FileDrop, or every text item as one block when it holds no files at all.</summary>
@@ -671,14 +680,27 @@ public partial class BubbleWindow : Window
 
     private static void SetDropEffect(DragEventArgs e)
     {
-        e.Effects = ShelfDropReader.CanRead(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+        // An item from this shelf hovering over this shelf has nowhere to go, so the cursor should
+        // say so rather than promising a drop that the handler will decline.
+        var fromThisShelf = e.Data.GetDataPresent(ShelfItemIdsFormat);
+        e.Effects = !fromThisShelf && ShelfDropReader.CanRead(e.Data)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
         e.Handled = true;
     }
 
     private async void OnDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
+        _dropLandedOnShelf = true;
         RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
+
+        // Dropped back onto the shelf it came from. Nothing to add — it is already here — and
+        // adding it would make a duplicate that the drag-out cleanup then removes the original of.
+        if (e.Data.GetDataPresent(ShelfItemIdsFormat))
+        {
+            return;
+        }
 
         // Read the payload before the first await: it belongs to the OLE drag loop, which lets go
         // the moment this handler yields, and reading it afterwards is how a drop that visibly
@@ -722,11 +744,15 @@ public partial class BubbleWindow : Window
 
     // ---------------- Dragging items back out ----------------
 
-    private void OnItemPreviewMouseDown(object sender, MouseButtonEventArgs e) => _dragStartPoint = e.GetPosition(null);
+    private void OnItemPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStartPoint = e.GetPosition(null);
+        _dropLandedOnShelf = false;
+    }
 
     private void OnItemMouseUp(object sender, MouseButtonEventArgs e) => _dragStartPoint = null;
 
-    private void OnItemMouseMove(object sender, MouseEventArgs e)
+    private async void OnItemMouseMove(object sender, MouseEventArgs e)
     {
         if (_dragStartPoint is null || e.LeftButton != MouseButtonState.Pressed)
         {
@@ -746,13 +772,61 @@ public partial class BubbleWindow : Window
         }
 
         var data = BuildDragData(view);
-        if (data is not null)
+        if (data is null)
         {
-            // Whichever of the two views the drag started in is the drag source.
-            var dragSource = sender as DependencyObject ?? ItemsList;
-            DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Copy | DragDropEffects.Move);
+            return;
         }
+
+        // Whichever of the two views the drag started in is the drag source.
+        var dragSource = sender as DependencyObject ?? ItemsList;
+        var effect = DragDrop.DoDragDrop(dragSource, data, DragDropEffects.Copy | DragDropEffects.Move);
+        await CompleteDragOutAsync(effect, [view.Model.Id]);
     }
+
+    /// <summary>
+    /// An item that has been dragged somewhere comes off the shelf.
+    ///
+    /// The shelf is a staging area, not storage: you put things on it in order to take them
+    /// somewhere, and once a file has gone where it was going, leaving a copy of it here means the
+    /// next collection starts among the leftovers of the last one. Clearing by hand every time is
+    /// work the gesture already told us was unnecessary.
+    ///
+    /// This removes the item from the shelf, never from the disk. The file stays wherever it was
+    /// and now also wherever it was dropped.
+    /// </summary>
+    private async Task CompleteDragOutAsync(DragDropEffects effect, IReadOnlyList<long> itemIds)
+    {
+        // None means nothing accepted the drop — Escape, or a target that refused it. The item was
+        // never delivered anywhere, so taking it off the shelf would simply lose it.
+        if (effect == DragDropEffects.None || _dropLandedOnShelf || itemIds.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var id in itemIds)
+            {
+                await _app.ShelfSession.RemoveItemAsync(id);
+            }
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write("Bubble drag out", ex);
+        }
+        RestartAutoHideTimer();
+    }
+
+    /// <summary>
+    /// Set by this card's own drop handlers, and read once each drag-out finishes.
+    ///
+    /// A drag that ends on one of the action tiles, or back on the card itself, has not taken the
+    /// item anywhere — so it must not count as delivered. Without this, dropping onto "Sao chép"
+    /// would copy the file to a folder and then empty the shelf, which is the one thing copying
+    /// is supposed not to do.
+    /// </summary>
+    private bool _dropLandedOnShelf;
 
     private static ShelfItemView? FindItemView(DependencyObject source)
     {
@@ -815,6 +889,7 @@ public partial class BubbleWindow : Window
     private async void OnActionDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
+        _dropLandedOnShelf = true;
         if (sender is not Button { Tag: QuickActionType action } button)
         {
             return;
