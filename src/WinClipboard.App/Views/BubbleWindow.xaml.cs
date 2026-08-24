@@ -914,13 +914,24 @@ public partial class BubbleWindow : Window
 
     private const string ShelfItemIdsFormat = "WinClipboard.ShelfItemIds";
 
+    /// <summary>
+    /// Lights up the tile the pointer is over. Brighter rather than blue: filling it with the
+    /// accent made it look like a selected row, where what it is is a surface about to catch what
+    /// you are holding. The tile that deletes lights red instead, so nothing lands there by
+    /// mistaking it for one of the others.
+    /// </summary>
     private void OnActionDragEnter(object sender, DragEventArgs e)
     {
         SetActionDropEffect(sender, e);
-        if (e.Effects != DragDropEffects.None && sender is Button button)
+        if (e.Effects == DragDropEffects.None || sender is not Button button)
         {
-            button.Background = (Brush)FindResource("AccentBrush");
+            return;
         }
+
+        var destructive = button.CommandParameter is QuickActionType.DeleteToRecycleBin
+                                                  or QuickActionType.DeletePermanently;
+        button.Background = (Brush)FindResource(destructive ? "DangerDropHighlightBrush" : "DropHighlightBrush");
+        button.BorderBrush = (Brush)FindResource(destructive ? "DangerDropBorderBrush" : "DropHighlightBorderBrush");
     }
 
     private void OnActionDragOver(object sender, DragEventArgs e) => SetActionDropEffect(sender, e);
@@ -930,6 +941,7 @@ public partial class BubbleWindow : Window
         if (sender is Button button)
         {
             button.ClearValue(BackgroundProperty);
+            button.ClearValue(BorderBrushProperty);
         }
     }
 
@@ -1019,6 +1031,14 @@ public partial class BubbleWindow : Window
     {
         ActionOverlay.Visibility = Visibility.Collapsed;
         ActionToggle.Visibility = Visibility.Visible;
+
+        // A tile lit at the moment of the drop never receives a DragLeave, and would still be lit
+        // the next time the panel opens.
+        foreach (var tile in ActionTiles.Children.OfType<Button>())
+        {
+            tile.ClearValue(BackgroundProperty);
+            tile.ClearValue(BorderBrushProperty);
+        }
     }
 
     private async void OnActionDrop(object sender, DragEventArgs e)
