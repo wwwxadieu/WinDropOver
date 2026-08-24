@@ -28,6 +28,9 @@ public partial class BubbleWindow : Window
 {
     private readonly App _app;
     private readonly DispatcherTimer _autoHideTimer;
+
+    /// <summary>Distinguishes a drag that has left the card from one that merely crossed between its children — see OnDragLeave.</summary>
+    private readonly DispatcherTimer _dragGoneTimer;
     private long _shelfId;
 
     /// <summary>When set, the card shows this shelf instead of the default one.</summary>
@@ -45,6 +48,15 @@ public partial class BubbleWindow : Window
 
         _autoHideTimer = new DispatcherTimer();
         _autoHideTimer.Tick += OnAutoHideTick;
+
+        // Short enough that a drag really leaving the card folds the panel away without a visible
+        // pause; long enough that the gap between one DragOver and the next never expires it.
+        _dragGoneTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        _dragGoneTimer.Tick += (_, _) =>
+        {
+            _dragGoneTimer.Stop();
+            CollapseActions();
+        };
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -687,35 +699,33 @@ public partial class BubbleWindow : Window
 
     private void OnDragOver(object sender, DragEventArgs e) => SetDropEffect(e);
 
+    /// <summary>
+    /// A drag leaving the card is reported here, but so is every hop from one child to the next,
+    /// because drag events bubble. The two are told apart by waiting: a hop is followed within
+    /// milliseconds by the next DragOver, which cancels the timer. Nothing follows a real
+    /// departure, so the timer runs out and the panel folds away.
+    /// </summary>
     private void OnDragLeave(object sender, DragEventArgs e)
     {
         RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
-        // Only when the drag has left the card altogether — see StillInside for why asking the
-        // window whether the mouse is over it does not answer that question during a drag.
-        if (!StillInside(e, this))
-        {
-            CollapseActions();
-        }
+        _dragGoneTimer.Stop();
+        _dragGoneTimer.Start();
     }
 
     /// <summary>
-    /// Whether the drag pointer is still within an element, asked of the event rather than of the
-    /// element.
+    /// Whether the drag pointer is inside an element right now.
     ///
-    /// IsMouseOver is the obvious thing to reach for and it is wrong here: during an OLE drag the
-    /// mouse is captured by the drag loop, so WPF's mouse-over tracking does not follow the
-    /// pointer and the answer is false even while the pointer is squarely inside the window.
-    ///
-    /// It is also not enough to trust DragLeave itself, because drag events bubble: crossing from
-    /// one child to the next raises DragLeave on the child the pointer left, and that reaches
-    /// every ancestor as though they had been left too.
-    ///
-    /// Together those two produced the flicker — the toggle's own DragLeave, fired the instant the
-    /// panel opened over it, reached the window, which collapsed the panel, which put the toggle
-    /// back under the pointer, which opened it again, once per mouse move.
+    /// Only ever asked during DragOver. That restriction is the whole point: OLE's DragLeave
+    /// carries no coordinates at all — IDropTarget::DragLeave takes no arguments — so a position
+    /// read from a leave event is not a position, and a bounds check built on one decides nothing.
+    /// The first attempt at this bug did exactly that and the flicker survived it.
     /// </summary>
-    private static bool StillInside(DragEventArgs e, FrameworkElement element)
+    private static bool PointerInside(DragEventArgs e, FrameworkElement element)
     {
+        if (element.Visibility != Visibility.Visible || element.ActualWidth <= 0)
+        {
+            return false;
+        }
         var point = e.GetPosition(element);
         return point.X >= 0 && point.Y >= 0
                && point.X <= element.ActualWidth && point.Y <= element.ActualHeight;
@@ -736,6 +746,7 @@ public partial class BubbleWindow : Window
     {
         e.Handled = true;
         _dropLandedOnShelf = true;
+        _dragGoneTimer.Stop();
         CollapseActions();
         RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
 
@@ -934,14 +945,7 @@ public partial class BubbleWindow : Window
     /// Opening the actions is what a drag arriving over the button means — there is no other
     /// reason to be there holding a file.
     /// </summary>
-    private void OnActionToggleDragEnter(object sender, DragEventArgs e)
-    {
-        SetActionDropEffect(sender, e);
-        if (e.Effects != DragDropEffects.None)
-        {
-            ExpandActions();
-        }
-    }
+    private void OnActionToggleDragEnter(object sender, DragEventArgs e) => SetActionDropEffect(sender, e);
 
     /// <summary>
     /// Folds the actions away when the pointer leaves the whole panel.
@@ -950,11 +954,37 @@ public partial class BubbleWindow : Window
     /// crosses from it onto one of its own tiles, because the event bubbles up from the child.
     /// Acting on those would close the panel at the exact moment the user aimed at something.
     /// </summary>
-    private void OnActionOverlayDragLeave(object sender, DragEventArgs e)
+    /// <summary>
+    /// Opens and closes the action panel from where the pointer actually is.
+    ///
+    /// Tunnelling, and on the window, so it runs before any child marks the event handled — the
+    /// tiles and the card all set Handled on DragOver to claim the drop effect, which would
+    /// otherwise stop a bubbling handler here from ever seeing the move.
+    ///
+    /// Everything about opening and closing is decided here, from one event that carries a real
+    /// position and fires on every move. The previous version decided it from DragEnter and
+    /// DragLeave, and those fire on every hop between children as well — which is how opening the
+    /// panel over the toggle immediately looked like leaving the toggle, and closed it again.
+    /// </summary>
+    private void OnPreviewDragOver(object sender, DragEventArgs e)
     {
-        if (!StillInside(e, ActionOverlay))
+        _dragGoneTimer.Stop();
+
+        if (!ShelfDropReader.CanRead(e.Data) && !e.Data.GetDataPresent(ShelfItemIdsFormat))
         {
-            CollapseActions();
+            return;
+        }
+
+        if (ActionOverlay.Visibility == Visibility.Visible)
+        {
+            if (!PointerInside(e, ActionOverlay))
+            {
+                CollapseActions();
+            }
+        }
+        else if (PointerInside(e, ActionToggle))
+        {
+            ExpandActions();
         }
     }
 
@@ -995,6 +1025,7 @@ public partial class BubbleWindow : Window
     {
         e.Handled = true;
         _dropLandedOnShelf = true;
+        _dragGoneTimer.Stop();
         CollapseActions();
         if (sender is not Button { CommandParameter: QuickActionType action } button)
         {

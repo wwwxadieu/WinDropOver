@@ -30,6 +30,16 @@
         brighter along the top edge, where a sheet of glass catches the light.
     -->
     <SolidColorBrush x:Key="GlassTintBrush" Color="#8C16161C" />
+
+    <!--
+        The fill for a panel that covers the card's own contents — the actions, the delete
+        question. Same hue as the glass, just opaque enough to hide the stack behind it.
+
+        Both of those panels used to carry a hand-typed #101014, which is far blacker than
+        anything else this app draws, and next to the tray menu it read as a hole rather than a
+        surface. It is a theme brush now for the same reason the tray menu's colours became one.
+    -->
+    <SolidColorBrush x:Key="ScrimBrush" Color="#F21C1C20" />
     <LinearGradientBrush x:Key="GlassSheenBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Offset="0" Color="#2EFFFFFF" />
         <GradientStop Offset="0.35" Color="#0AFFFFFF" />
