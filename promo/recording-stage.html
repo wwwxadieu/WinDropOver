@@ -1,0 +1,676 @@
+<title>Sân quay WinDropOver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  /*
+     Deliberately single-theme. The stage is a recording surface for a dark application:
+     every colour below is lifted from src/WinClipboard.App/Styles/Theme.xaml and converted
+     from WPF's #AARRGGBB to CSS's #RRGGBBAA. A light variant would misrepresent the product,
+     so the page paints every colour explicitly and never borrows the host's ground.
+  */
+  :root {
+    --ink:        #0B0B0E;
+    --ink-2:      #141419;
+    --ink-3:      #1B1B22;
+    --glass:      #1C1C20D9;
+    --edge:       #FFFFFF40;
+    --control:    #FFFFFF14;
+    --control-2:  #FFFFFF26;
+    --accent:     #3B82F6;
+    --accent-dim: #3B82F61F;
+    --danger:     #EF4444;
+    --text:       #F2F2F2;
+    --text-2:     #FFFFFF99;
+    --text-3:     #FFFFFF66;
+    --sans: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ink); color: var(--text);
+    font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; display: flex;
+          flex-direction: column; gap: 22px; }
+
+  header { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+  h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .sub { font-size: 15px; line-height: 1.5; color: var(--text-2); max-width: 62ch;
+         margin: 6px 0 0; text-wrap: pretty; }
+
+  /* ---- stage ------------------------------------------------------------ */
+  .stage-frame {
+    position: relative; width: 100%; background: #000; border-radius: 14px;
+    border: 1px solid var(--control-2); overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+  }
+  .stage-frame::after {
+    content: attr(data-dim); position: absolute; right: 10px; bottom: 8px; z-index: 40;
+    font-family: var(--mono); font-size: 11px; color: var(--text-3);
+    background: #00000099; padding: 3px 8px; border-radius: 6px; pointer-events: none;
+  }
+  #viewport { position: relative; width: 100%; overflow: hidden; }
+  #scene { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0; }
+
+  /* ---- transport -------------------------------------------------------- */
+  .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  button {
+    font-family: inherit; font-size: 14px; font-weight: 500; color: var(--text);
+    background: var(--control); border: 1px solid var(--control-2); border-radius: 10px;
+    padding: 9px 15px; cursor: pointer; min-height: 44px;
+  }
+  button:hover { background: #FFFFFF1F; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button[aria-pressed="true"] { background: var(--accent-dim); border-color: #3B82F680;
+                                color: #FFF; }
+  button.primary { background: var(--accent); border-color: transparent; color: #fff;
+                   font-weight: 700; }
+  button.primary:hover { background: #5B9BFB; }
+  .group { display: flex; gap: 6px; }
+  .spacer { flex: 1; }
+  .clock { font-family: var(--mono); font-size: 15px; color: var(--text-2);
+           font-variant-numeric: tabular-nums; }
+
+  .scrub { width: 100%; appearance: none; height: 6px; border-radius: 3px; margin: 0;
+           background: var(--control); cursor: pointer; }
+  .scrub::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px;
+           border-radius: 8px; background: var(--accent); border: 2px solid var(--ink); }
+  .scrub::-moz-range-thumb { width: 14px; height: 14px; border-radius: 8px;
+           background: var(--accent); border: 2px solid var(--ink); }
+  .scrub:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---- shot list -------------------------------------------------------- */
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
+           gap: 10px; }
+  .shot { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 13px 15px;
+          border-radius: 12px; background: #FFFFFF08; border: 1px solid var(--control-2);
+          cursor: pointer; }
+  .shot:hover { background: #FFFFFF0F; }
+  .shot[aria-current="true"] { border-color: #3B82F680; background: var(--accent-dim); }
+  .shot .t { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+  .shot[aria-current="true"] .t { color: var(--accent); }
+  .shot .n { font-size: 14px; font-weight: 700; }
+  .shot .d { font-size: 12.5px; line-height: 1.45; color: var(--text-2); text-wrap: pretty; }
+
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+           gap: 12px; }
+  .note { padding: 16px 18px; border-radius: 12px; background: #FFFFFF08;
+          border: 1px solid var(--control-2); }
+  .note h3 { margin: 0 0 7px; font-size: 14px; font-weight: 700; }
+  .note p { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--text-2);
+            text-wrap: pretty; }
+  .note code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+
+  /* ---- recording mode: chrome away, stage only -------------------------- */
+  body.rec { background: #000; }
+  body.rec .wrap { max-width: none; padding: 0; height: 100vh; justify-content: center; gap: 0; }
+  body.rec header, body.rec .bar, body.rec .shots, body.rec .notes, body.rec .scrub-row,
+  body.rec .stage-frame::after { display: none; }
+  body.rec .stage-frame { border: 0; border-radius: 0; box-shadow: none; }
+  body.rec .exit { display: block; position: fixed; right: 14px; top: 14px; z-index: 90;
+                   opacity: 0.25; }
+  body.rec .exit:hover { opacity: 1; }
+  .exit { display: none; }
+
+  @media (prefers-reduced-motion: reduce) { .rm { display: block; } }
+  .rm { display: none; font-size: 13px; color: var(--text-3); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Sân quay WinDropOver</h1>
+      <p class="sub">Bảy cảnh chạy đúng thời lượng chuyển động thật trong mã nguồn — thẻ mở
+        <code style="font-family:var(--mono);color:var(--text)">190ms</code>, chồng file
+        <code style="font-family:var(--mono);color:var(--text)">260ms</code>, bảng hành động
+        <code style="font-family:var(--mono);color:var(--text)">170ms</code> với bốn ô lệch nhau
+        <code style="font-family:var(--mono);color:var(--text)">40ms</code>. Bật chế độ quay rồi
+        thu màn hình để lấy video, hoặc dùng nó làm bản dựng mẫu khi quay app thật.</p>
+      <p class="rm">Bạn đang bật chế độ giảm chuyển động, nên trang không tự chạy — bấm Chạy khi muốn.</p>
+    </div>
+  </header>
+
+  <div class="stage-frame" id="frame" data-dim="1920 × 1080">
+    <div id="viewport"><div id="scene"></div></div>
+  </div>
+
+  <div class="scrub-row"><input class="scrub" id="scrub" type="range" min="0" max="30000"
+       value="0" step="10" aria-label="Vị trí trong video"></div>
+
+  <div class="bar">
+    <button class="primary" id="play">Chạy</button>
+    <button id="restart">Quay lại đầu</button>
+    <div class="group" role="group" aria-label="Khung hình">
+      <button class="ar" data-ar="16:9" aria-pressed="true">16:9</button>
+      <button class="ar" data-ar="1:1" aria-pressed="false">1:1</button>
+      <button class="ar" data-ar="9:16" aria-pressed="false">9:16</button>
+    </div>
+    <div class="group" role="group" aria-label="Tốc độ">
+      <button class="sp" data-sp="0.5" aria-pressed="false">0,5×</button>
+      <button class="sp" data-sp="1" aria-pressed="true">1×</button>
+    </div>
+    <div class="spacer"></div>
+    <span class="clock" id="clock">0,0 / 30,0 s</span>
+    <button id="rec">Chế độ quay</button>
+  </div>
+
+  <div class="shots" id="shots"></div>
+
+  <div class="notes">
+    <div class="note"><h3>Khi thu màn hình trang này</h3>
+      <p>Bấm <b>Chế độ quay</b> để giấu hết phần điều khiển, rồi thu vùng cửa sổ.
+      Thu ở <code>60fps</code> — ở 30fps các chuyển động 40–170ms sẽ bị nuốt mất, mà đó
+      chính là thứ đang muốn khoe.</p></div>
+    <div class="note"><h3>Khi quay app thật</h3>
+      <p>Khay thật rộng <code>316px</code>. Trên màn hình 1920 nó khá nhỏ trong khung
+      hình — quay ở <code>1280×720</code> để khay chiếm tỉ lệ lớn hơn, hoặc phóng lúc dựng.
+      Trên sân quay này khay đang được phóng <code>1,5×</code> cho dễ đọc.</p></div>
+    <div class="note"><h3>Cắt 1:1 và 9:16</h3>
+      <p>Hai nút khung hình cắt đúng như lúc dựng thật, không dựng lại bố cục. Bấm thử
+      <code>9:16</code> để xem cảnh nào bị mất hai mép — mọi thứ quan trọng đã được đặt
+      giữa khung, nhưng đoạn con trỏ đi vào ở cảnh 1 sẽ hụt.</p></div>
+  </div>
+</div>
+<button class="exit" id="exit">Thoát chế độ quay</button>
+<script>
+(function () {
+  "use strict";
+
+  // Every duration below is the one the app actually uses, read out of
+  // Views/BubbleWindow.xaml.cs. Changing them here makes the rehearsal a lie.
+  var CARD_FADE = 120, CARD_GROW = 190;      // PlayOpenAnimation
+  var SHEET_ARRIVE = 260, SHEET_FADE = 150;  // Arrive / ArriveDuration
+  var ACT_OPEN = 170, ACT_TILE_STEP = 40;    // ActionsOpenDuration, 40 * order
+  var ACT_TILE_FADE = 140, ACT_TILE_RISE = 200;
+
+  var TOTAL = 30000;
+  var T = {
+    dragEnd: 2600, shakeA: 3000, shakeB: 4900, cardIn: 5000,
+    drops: [8200, 9300, 10400, 11500],
+    outPick: 13400, outDrop: 16600,
+    actMove: 19000, actOpen: 20600, actDrop: 23200,
+    end: 25400
+  };
+
+  var SCALE = 1.5;                       // the card, enlarged so it reads at 1080p
+  var CX = 723, CY = 258;                // card origin in scene coordinates
+
+  var SHOTS = [
+    { a: 0,     b: 3000,  n: "Ngập ngừng",   d: "Kéo file đi ngang, rồi khựng lại." },
+    { a: 3000,  b: 5000,  n: "Lắc",          d: "Ba nhịp trái–phải, vẫn giữ file." },
+    { a: 5000,  b: 8200,  n: "Khay hiện ra", d: "Bung lên dưới con trỏ trong 190ms." },
+    { a: 8200,  b: 13400, n: "Thả vào",      d: "Bốn file, mỗi file nảy vào trong 260ms." },
+    { a: 13400, b: 19000, n: "Kéo ra",       d: "File rời khay và tự biến mất khỏi khay." },
+    { a: 19000, b: 25400, n: "Hành động",    d: "Bảng nở 170ms, bốn ô lệch nhau 40ms." },
+    { a: 25400, b: 30000, n: "Kết",          d: "Logo và địa chỉ tải." }
+  ];
+
+  var FILES = [
+    ["bao-cao-Q3", "PDF",  "#EF4444"],
+    ["anh-bia",    "PNG",  "#22C55E"],
+    ["hop-dong",   "DOCX", "#3B82F6"],
+    ["du-lieu",    "XLSX", "#16A34A"]
+  ];
+
+  var ICON = {
+    close: "M 18,6 L 6,18 M 6,6 L 18,18",
+    trash: "M 5,7 L 19,7 M 10,7 L 10,5 L 14,5 L 14,7 M 6.5,7 L 7.5,19 L 16.5,19 L 17.5,7 M 10.5,10.5 L 10.5,15.5 M 13.5,10.5 L 13.5,15.5",
+    chevron: "M 9,6 L 15,12 L 9,18",
+    move: "M 3,12 L 13,12 M 9.5,8.5 L 13,12 L 9.5,15.5 M 17,4 L 21,4 L 21,20 L 17,20",
+    copy: "M 9,9 L 20,9 L 20,20 L 9,20 Z M 5,15 L 4,15 L 4,4 L 15,4 L 15,5",
+    zip: "M 3,9 L 21,9 L 21,20 L 3,20 Z M 3,9 L 5.5,4 L 18.5,4 L 21,9 M 12,9 L 12,20",
+    bolt: "M 13,3 L 6,13 L 11.5,13 L 11,21 L 18,11 L 12.5,11 Z",
+    trashX: "M 5,7 L 19,7 M 10,7 L 10,5 L 14,5 L 14,7 M 6.5,7 L 7.5,19 L 16.5,19 L 17.5,7 M 10,10.5 L 14,15.5 M 14,10.5 L 10,15.5"
+  };
+
+  function svg(d, size, stroke, w) {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none">' +
+      '<path d="' + d + '" stroke="' + stroke + '" stroke-width="' + (w || 1.8) +
+      '" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+
+  function mark(size) {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 100 100">' +
+      '<rect x="6" y="6" width="88" height="88" rx="22" fill="#3B82F6"/>' +
+      '<rect x="43.5" y="18.5" width="13" height="28" rx="5.5" fill="#fff"/>' +
+      '<path d="M 31.5,42 L 68.5,42 L 50,65.5 Z" fill="#fff"/>' +
+      '<rect x="20.5" y="71.5" width="59" height="13.5" rx="6" fill="#FFFFFFCD"/></svg>';
+  }
+
+  function glyph(ext, tint, s) {
+    return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 40 40">' +
+      '<path d="M 8,3 L 25,3 L 34,12 L 34,37 L 8,37 Z" fill="' + tint + '" fill-opacity="0.16" stroke="' +
+      tint + '" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<path d="M 25,3 L 25,12 L 34,12" fill="none" stroke="' + tint +
+      '" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<text x="21" y="30" text-anchor="middle" font-family="JetBrains Mono, monospace" ' +
+      'font-size="8.5" font-weight="700" fill="' + tint + '">' + ext + '</text></svg>';
+  }
+
+  // ------------------------------------------------------------------ scene
+  var scene = document.getElementById("scene");
+
+  function tileMarkup(i) {
+    var f = FILES[i];
+    return '<div class="sheet" data-i="' + i + '" style="position:absolute;width:80px;">' +
+      '<div style="width:72px;height:72px;border-radius:8px;background:#FFFFFF14;display:flex;' +
+      'align-items:center;justify-content:center;margin:0 auto;">' + glyph(f[1], f[2], 40) + '</div>' +
+      '<div style="margin-top:4px;font-size:10px;color:#FFFFFF99;text-align:center;' +
+      'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + f[0] + '</div></div>';
+  }
+
+  function actTile(d, label, danger) {
+    var c = danger ? "#EF4444" : "#F2F2F2";
+    return '<div class="atile" style="border-radius:12px;background:#FFFFFF14;border:1px solid ' +
+      (danger ? "#EF444440" : "#FFFFFF26") + ';display:flex;flex-direction:column;' +
+      'align-items:center;justify-content:center;gap:7px;">' + svg(d, 26, c) +
+      '<div style="font-size:11px;color:' + c + '">' + label + '</div></div>';
+  }
+
+  scene.innerHTML =
+    // wallpaper
+    '<div style="position:absolute;inset:0;background:radial-gradient(70% 60% at 50% 38%,' +
+    '#191922 0%,#0B0B0E 70%);"></div>' +
+    // a few desktop icons, so the stage reads as a desktop and not a slide
+    '<div id="desk" style="position:absolute;left:120px;top:150px;display:flex;' +
+    'flex-direction:column;gap:34px;">' +
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:7px;width:104px;">' +
+      glyph("PDF", "#EF4444", 54) +
+      '<div style="font-size:13px;color:#FFFFFF99;">bao-cao-Q3</div></div>' +
+      '<div style="display:flex;flex-direction:column;align-items:center;gap:7px;width:104px;">' +
+      glyph("PNG", "#22C55E", 54) +
+      '<div style="font-size:13px;color:#FFFFFF99;">anh-bia</div></div>' +
+    '</div>' +
+    // destination folder window
+    '<div id="folder" style="position:absolute;left:1330px;top:470px;width:400px;height:270px;' +
+    'border-radius:12px;background:#16161BE6;border:1px solid #FFFFFF26;opacity:0;' +
+    'box-shadow:0 24px 60px rgba(0,0,0,.55);overflow:hidden;">' +
+      '<div style="height:38px;border-bottom:1px solid #FFFFFF14;display:flex;align-items:center;' +
+      'padding:0 14px;font-size:13px;color:#FFFFFF99;">Tài liệu › Quý 3</div>' +
+      '<div id="folderBody" style="padding:18px;display:flex;gap:14px;flex-wrap:wrap;"></div>' +
+    '</div>' +
+    // shake trail
+    '<svg id="trail" style="position:absolute;left:770px;top:296px;opacity:0;" width="240" ' +
+    'height="70" viewBox="0 0 240 70" fill="none"><defs><linearGradient id="tg" x1="0" x2="1">' +
+    '<stop offset="0" stop-color="#3B82F6" stop-opacity="0"/>' +
+    '<stop offset="1" stop-color="#3B82F6" stop-opacity=".95"/></linearGradient></defs>' +
+    '<path d="M 6,35 C 30,4 54,66 88,35 C 118,6 142,64 176,35 C 200,16 218,30 234,35" ' +
+    'stroke="url(#tg)" stroke-width="3" stroke-linecap="round"/></svg>' +
+    // the shelf card, authored at 1:1 with the app and scaled as a whole
+    '<div id="card" style="position:absolute;left:' + CX + 'px;top:' + CY + 'px;width:316px;' +
+    'height:376px;transform-origin:0 0;opacity:0;">' +
+      '<div style="position:absolute;inset:-18px;border-radius:30px;background:' +
+      'radial-gradient(120px 120px at 30% 25%,#3B82F65C,transparent 70%),' +
+      'radial-gradient(160px 160px at 75% 80%,#7C3AED4D,transparent 70%);filter:blur(30px);"></div>' +
+      '<div style="position:absolute;inset:0;border-radius:14px;background:#1C1C20D9;' +
+      'box-shadow:0 28px 70px rgba(0,0,0,.6);"></div>' +
+      '<div style="position:absolute;inset:0;border-radius:14px;background:' +
+      'linear-gradient(160deg,#FFFFFF1A,#FFFFFF00 42%);"></div>' +
+      '<div style="position:absolute;inset:0;border-radius:14px;border:1px solid #FFFFFF40;' +
+      'padding:12px 14px;">' +
+        '<div style="height:28px;display:flex;align-items:center;justify-content:space-between;">' +
+          '<div style="width:28px;height:28px;border-radius:14px;background:#FFFFFF14;display:flex;' +
+          'align-items:center;justify-content:center;">' + svg(ICON.close, 15, "#FFFFFF99") + '</div>' +
+          '<div style="width:34px;height:4px;border-radius:2px;background:#FFFFFF40;"></div>' +
+          '<div style="width:28px;height:28px;border-radius:14px;background:#FFFFFF14;display:flex;' +
+          'align-items:center;justify-content:center;">' + svg(ICON.trash, 15, "#EF4444") + '</div>' +
+        '</div>' +
+        '<div id="empty" style="position:absolute;left:14px;right:14px;top:56px;bottom:96px;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">' +
+          '<div style="width:56px;height:56px;border-radius:14px;border:1.5px dashed #FFFFFF26;' +
+          'display:flex;align-items:center;justify-content:center;margin-bottom:6px;">' +
+          svg(ICON.bolt, 24, "#FFFFFF66") + '</div>' +
+          '<div style="font-size:13px;color:#F2F2F2;">Thả tệp vào đây</div>' +
+          '<div style="font-size:11px;color:#FFFFFF66;">từ bất kỳ thư mục hay ứng dụng nào</div>' +
+        '</div>' +
+        '<div id="sheets">' + tileMarkup(0) + tileMarkup(1) + tileMarkup(2) + tileMarkup(3) + '</div>' +
+        '<div id="pill" style="position:absolute;left:0;right:0;top:319px;display:flex;' +
+        'justify-content:center;opacity:0;"><div style="border-radius:13px;background:#FFFFFF14;' +
+        'padding:5px 12px;display:inline-flex;align-items:center;gap:6px;font-size:11px;' +
+        'color:#F2F2F2;"><span id="count">0 mục</span>' + svg(ICON.chevron, 14, "#FFFFFF66", 2) +
+        '</div></div>' +
+        '<div id="actPill" style="position:absolute;left:0;right:0;top:341px;display:flex;' +
+        'justify-content:center;"><div style="border-radius:13px;background:#FFFFFF14;' +
+        'padding:5px 12px;display:inline-flex;align-items:center;gap:7px;font-size:11px;' +
+        'color:#F2F2F2;">' + svg(ICON.bolt, 14, "#FFFFFF99") + '<span>Hành động</span></div></div>' +
+        // the action panel, growing out of the button it replaces
+        '<div id="acts" style="position:absolute;left:14px;right:14px;top:46px;bottom:12px;' +
+        'border-radius:12px;background:#1C1C2059;border:1px solid #FFFFFF26;display:flex;' +
+        'flex-direction:column;padding:12px 8px;opacity:0;transform-origin:50% 100%;">' +
+          '<div style="text-align:center;font-size:12px;font-weight:500;color:#F2F2F2;">Hành động</div>' +
+          '<div style="text-align:center;font-size:10px;color:#FFFFFF66;margin-top:3px;">' +
+          'Thả vào một ô để chạy</div>' +
+          '<div style="flex:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));' +
+          'grid-template-rows:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px;">' +
+          actTile(ICON.move, "Chuyển") + actTile(ICON.copy, "Sao chép") +
+          actTile(ICON.zip, "Nén ZIP") + actTile(ICON.trashX, "Xoá", true) + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    // the file riding with the cursor
+    '<div id="ghost" style="position:absolute;left:0;top:0;width:110px;opacity:0;pointer-events:none;">' +
+      '<div style="width:78px;height:78px;border-radius:12px;background:#1C1C20E6;' +
+      'border:1px solid #FFFFFF40;display:flex;align-items:center;justify-content:center;' +
+      'margin:0 auto;box-shadow:0 14px 34px rgba(0,0,0,.6);"><span id="ghostGlyph"></span></div>' +
+      '<div id="ghostName" style="margin-top:6px;font-size:12px;color:#FFFFFF99;' +
+      'text-align:center;"></div></div>' +
+    // cursor
+    '<svg id="cursor" style="position:absolute;left:0;top:0;filter:drop-shadow(0 3px 7px rgba(0,0,0,.75));" ' +
+    'width="36" height="36" viewBox="0 0 24 24">' +
+    '<path d="M 5,2 L 5,19 L 9.5,15 L 12.5,21.5 L 15.5,20 L 12.5,13.8 L 18.5,13.5 Z" ' +
+    'fill="#fff" stroke="#0B0B0E" stroke-width="1.2" stroke-linejoin="round"/></svg>' +
+    // caption
+    '<div id="cap" style="position:absolute;left:50%;top:900px;transform:translateX(-50%);' +
+    'font-size:46px;font-weight:800;letter-spacing:-.02em;color:#F2F2F2;text-align:center;' +
+    'white-space:nowrap;opacity:0;text-shadow:0 4px 24px rgba(0,0,0,.8);"></div>' +
+    // end card
+    '<div id="endcard" style="position:absolute;inset:0;background:#0B0B0E;opacity:0;' +
+    'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;">' +
+      '<div id="endMark" style="opacity:0;">' + mark(112) + '</div>' +
+      '<div id="endT1" style="font-size:58px;font-weight:800;letter-spacing:-.03em;opacity:0;">' +
+      'Miễn phí. Mã nguồn mở.</div>' +
+      '<div id="endT2" style="font-family:JetBrains Mono,monospace;font-size:26px;' +
+      'color:#FFFFFF99;opacity:0;">github.com/wwwxadieu/WinDropOver</div>' +
+    '</div>';
+
+  var el = {};
+  ["folder", "folderBody", "trail", "card", "empty", "sheets", "pill", "count", "actPill",
+   "acts", "ghost", "ghostGlyph", "ghostName", "cursor", "cap", "endcard", "endMark",
+   "endT1", "endT2"].forEach(function (id) { el[id] = document.getElementById(id); });
+  var sheets = [].slice.call(el.sheets.children);
+  var atiles = [].slice.call(el.acts.querySelectorAll(".atile"));
+
+  // Tile slots inside the card, in the card's own coordinates: three per row,
+  // 80 wide with 2px side margins, centred in the 288px content column.
+  function slot(i) {
+    return { x: 32 + (i % 3) * 84, y: 47 + Math.floor(i / 3) * 95 };
+  }
+  sheets.forEach(function (s, i) {
+    var p = slot(i);
+    s.style.left = p.x + "px";
+    s.style.top = p.y + "px";
+  });
+  function sceneOf(lx, ly) { return { x: CX + SCALE * lx, y: CY + SCALE * ly }; }
+
+  // ------------------------------------------------------------------ maths
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function seg(t, a, b) { return clamp((t - a) / (b - a), 0, 1); }
+  function outCubic(p) { return 1 - Math.pow(1 - p, 3); }
+  function inOut(p) { return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2; }
+  function lerp(a, b, p) { return a + (b - a) * p; }
+
+  var actPos = sceneOf(158, 352);
+  var zipPos = sceneOf(90, 290);
+  var CURSOR_KEYS = [
+    [0,            330,  760],
+    [T.dragEnd,    880,  330],
+    [T.shakeB,     880,  330],
+    [T.cardIn,     880,  330],
+    [T.drops[0],   860,  430],
+    [T.drops[3],   960,  455],
+    [T.outPick,    sceneOf(74, 83).x, sceneOf(74, 83).y],
+    [T.outDrop,    1500, 610],
+    [T.actMove,    960,  520],
+    [T.actOpen,    actPos.x, actPos.y],
+    [T.actDrop,    zipPos.x, zipPos.y],
+    [T.end,        zipPos.x, zipPos.y]
+  ];
+
+  function cursorAt(t) {
+    var i = 0;
+    while (i < CURSOR_KEYS.length - 2 && t > CURSOR_KEYS[i + 1][0]) i++;
+    var a = CURSOR_KEYS[i], b = CURSOR_KEYS[i + 1];
+    var p = inOut(seg(t, a[0], b[0]));
+    var x = lerp(a[1], b[1], p), y = lerp(a[2], b[2], p);
+    if (t >= T.shakeA && t <= T.shakeB) {           // three decisive passes
+      var k = seg(t, T.shakeA, T.shakeB);
+      var damp = Math.sin(Math.PI * k);
+      x += Math.sin(k * Math.PI * 6) * 78 * damp;
+      y += Math.sin(k * Math.PI * 12) * 9 * damp;
+    }
+    return { x: x, y: y };
+  }
+
+  var CAPTIONS = [
+    [200, 2900, "Kéo được rồi."],
+    [3100, 4880, "Giờ thả đâu?"],
+    [5120, 7900, "Lắc chuột."],
+    [8200, 13100, "Thả vào. Tìm chỗ để sau."],
+    [13600, 18500, "Kéo ra là xong."],
+    [19000, 25000, "Chuyển · Sao chép · Nén ZIP · Xoá"]
+  ];
+
+  // ------------------------------------------------------------------ frame
+  function apply(t) {
+    var c = cursorAt(t);
+    el.cursor.style.transform = "translate(" + (c.x - 5) + "px," + (c.y - 2) + "px)";
+
+    // the file that rides with the pointer, and which file it is
+    var gi = -1;
+    if (t < T.drops[3] + 120) {
+      for (var k = 0; k < 4; k++) { if (t < T.drops[k] + 120) { gi = k; break; } }
+    } else if (t >= T.outPick && t < T.outDrop + 150) {
+      gi = 1;                                    // the sheet that gets dragged back out
+    } else if (t >= T.actMove - 1200 && t < T.actDrop + 250) {
+      gi = 0;                                    // picked up again, to aim at an action tile
+    }
+    if (gi >= 0) {
+      var f = FILES[gi];
+      if (el.ghost.dataset.f !== String(gi)) {
+        el.ghost.dataset.f = String(gi);
+        el.ghostGlyph.innerHTML = glyph(f[1], f[2], 40);
+        el.ghostName.textContent = f[0];
+      }
+      el.ghost.style.opacity = "1";
+      el.ghost.style.transform = "translate(" + (c.x - 20) + "px," + (c.y + 10) + "px)";
+    } else {
+      el.ghost.style.opacity = "0";
+    }
+
+    // shake trail follows the pointer while the shake is happening
+    var sh = t >= T.shakeA && t <= T.shakeB ? Math.sin(Math.PI * seg(t, T.shakeA, T.shakeB)) : 0;
+    el.trail.style.opacity = String(sh * 0.9);
+
+    // the card: fade 120ms, scale 0.92 to 1 and rise 10px to 0, both over 190ms
+    if (t < T.cardIn) {
+      el.card.style.opacity = "0";
+    } else {
+      var fp = seg(t, T.cardIn, T.cardIn + CARD_FADE);
+      var gp = outCubic(seg(t, T.cardIn, T.cardIn + CARD_GROW));
+      el.card.style.opacity = String(fp);
+      el.card.style.transform =
+        "translateY(" + lerp(10, 0, gp) + "px) scale(" + SCALE * lerp(0.92, 1, gp) + ")";
+    }
+
+    // sheets arrive one at a time: pop 0.55 to 1 over 260ms, fade over 150ms
+    var landed = 0;
+    sheets.forEach(function (s, i) {
+      var t0 = T.drops[i];
+      var gone = i === 1 && t >= T.outPick;          // the one dragged back out
+      if (t < t0 || gone) { s.style.opacity = "0"; return; }
+      landed++;
+      var pop = outCubic(seg(t, t0, t0 + SHEET_ARRIVE));
+      s.style.opacity = String(seg(t, t0, t0 + SHEET_FADE));
+      s.style.transform = "scale(" + lerp(0.55, 1, pop) + ")";
+      s.style.transformOrigin = "50% 50%";
+    });
+    el.empty.style.opacity = landed ? "0" : String(seg(t, T.cardIn, T.cardIn + CARD_FADE));
+    el.pill.style.opacity = landed ? "1" : "0";
+    el.count.textContent = landed + " mục";
+
+    // the action panel: overlay fades 110ms, grows 0.90 to 1 on Y and 0.96 on X over 170ms,
+    // and the four tiles enter 40ms apart, bottom row first
+    if (t < T.actOpen) {
+      el.acts.style.opacity = "0";
+      el.actPill.style.opacity = "1";
+    } else {
+      var ap = outCubic(seg(t, T.actOpen, T.actOpen + ACT_OPEN));
+      el.acts.style.opacity = String(seg(t, T.actOpen, T.actOpen + 110));
+      el.acts.style.transform = "scale(" + lerp(0.96, 1, ap) + "," + lerp(0.90, 1, ap) + ")";
+      el.actPill.style.opacity = "0";
+      atiles.forEach(function (tile, i) {
+        var order = i < 2 ? i + 2 : i - 2;          // bottom row first, nearest the pointer
+        var d = T.actOpen + ACT_TILE_STEP * order;
+        tile.style.opacity = String(seg(t, d, d + ACT_TILE_FADE));
+        tile.style.transform =
+          "translateY(" + lerp(12, 0, outCubic(seg(t, d, d + ACT_TILE_RISE))) + "px)";
+        var hot = i === 2 && t >= T.actDrop - 500 && t < T.actDrop + 700;
+        tile.style.background = hot ? "#FFFFFF3D" : "#FFFFFF14";
+        tile.style.borderColor = hot ? "#FFFFFFA6" : (i === 3 ? "#EF444440" : "#FFFFFF26");
+      });
+    }
+
+    // the destination folder, and the file that lands in it
+    el.folder.style.opacity = String(seg(t, T.outPick - 600, T.outPick));
+    var inFolder = t >= T.outDrop;
+    if (el.folderBody.dataset.on !== String(inFolder)) {
+      el.folderBody.dataset.on = String(inFolder);
+      el.folderBody.innerHTML = inFolder
+        ? '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:86px;">' +
+          glyph(FILES[1][1], FILES[1][2], 44) +
+          '<div style="font-size:12px;color:#FFFFFF99;">' + FILES[1][0] + '</div></div>'
+        : "";
+    }
+
+    // captions
+    var text = "", op = 0;
+    for (var i = 0; i < CAPTIONS.length; i++) {
+      var cp = CAPTIONS[i];
+      if (t >= cp[0] - 220 && t <= cp[1] + 220) {
+        text = cp[2];
+        op = Math.min(seg(t, cp[0] - 220, cp[0]), 1 - seg(t, cp[1], cp[1] + 220));
+      }
+    }
+    if (el.cap.textContent !== text) el.cap.textContent = text;
+    el.cap.style.opacity = String(op);
+
+    // end card
+    var ep = seg(t, T.end, T.end + 420);
+    el.endcard.style.opacity = String(ep);
+    el.endMark.style.opacity = String(seg(t, T.end + 250, T.end + 750));
+    el.endMark.style.transform = "scale(" + lerp(0.9, 1, outCubic(seg(t, T.end + 250, T.end + 900))) + ")";
+    el.endT1.style.opacity = String(seg(t, T.end + 600, T.end + 1100));
+    el.endT2.style.opacity = String(seg(t, T.end + 950, T.end + 1450));
+  }
+
+  // ------------------------------------------------------------- transport
+  var playing = false, clock = 0, last = 0, speed = 1;
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var $play = document.getElementById("play"),
+      $scrub = document.getElementById("scrub"),
+      $clock = document.getElementById("clock"),
+      $frame = document.getElementById("frame"),
+      $viewport = document.getElementById("viewport");
+
+  function fmt(ms) { return (ms / 1000).toFixed(1).replace(".", ","); }
+
+  function tick(now) {
+    if (playing) {
+      if (!last) last = now;
+      clock += (now - last) * speed;
+      last = now;
+      if (clock >= TOTAL) { clock = 0; }          // loop, so a recording can run long
+      $scrub.value = String(Math.round(clock));
+      $clock.textContent = fmt(clock) + " / 30,0 s";
+      markShot(clock);
+    } else { last = 0; }
+    apply(clock);
+    requestAnimationFrame(tick);
+  }
+
+  function setPlaying(on) {
+    playing = on; last = 0;
+    $play.textContent = on ? "Tạm dừng" : "Chạy";
+  }
+
+  $play.addEventListener("click", function () { setPlaying(!playing); });
+  document.getElementById("restart").addEventListener("click", function () {
+    clock = 0; $scrub.value = "0"; $clock.textContent = "0,0 / 30,0 s"; markShot(0);
+  });
+  $scrub.addEventListener("input", function () {
+    clock = Number($scrub.value); $clock.textContent = fmt(clock) + " / 30,0 s"; markShot(clock);
+  });
+
+  // aspect: a real crop of the same 16:9 scene, which is what happens in an editor
+  var AR = { "16:9": [1920, 1080], "1:1": [1080, 1080], "9:16": [607, 1080] };
+  var ar = "16:9";
+  function layout() {
+    var box = AR[ar];
+    var rec = document.body.classList.contains("rec");
+    var maxW = $frame.parentElement.clientWidth;
+    var maxH = rec ? window.innerHeight : Math.max(320, window.innerHeight * 0.66);
+    var s = Math.min(maxW / box[0], maxH / box[1]);
+    $frame.style.width = (box[0] * s) + "px";
+    $frame.style.margin = "0 auto";
+    $viewport.style.width = (box[0] * s) + "px";
+    $viewport.style.height = (box[1] * s) + "px";
+    scene.style.transform = "scale(" + s + ")";
+    scene.style.left = (-(1920 - box[0]) / 2 * s) + "px";
+    scene.style.top = (-(1080 - box[1]) / 2 * s) + "px";
+    $frame.dataset.dim = box[0] + " × " + box[1];
+  }
+  [].forEach.call(document.querySelectorAll(".ar"), function (b) {
+    b.addEventListener("click", function () {
+      ar = b.dataset.ar;
+      [].forEach.call(document.querySelectorAll(".ar"), function (o) {
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+      layout();
+    });
+  });
+  [].forEach.call(document.querySelectorAll(".sp"), function (b) {
+    b.addEventListener("click", function () {
+      speed = Number(b.dataset.sp);
+      [].forEach.call(document.querySelectorAll(".sp"), function (o) {
+        o.setAttribute("aria-pressed", String(o === b));
+      });
+    });
+  });
+
+  // shot list
+  var $shots = document.getElementById("shots");
+  SHOTS.forEach(function (s, i) {
+    var b = document.createElement("button");
+    b.className = "shot";
+    b.innerHTML = '<span class="t">' + fmt(s.a) + "s → " + fmt(s.b) + 's</span>' +
+      '<span class="n">' + (i + 1) + ". " + s.n + '</span><span class="d">' + s.d + "</span>";
+    b.addEventListener("click", function () {
+      clock = s.a; $scrub.value = String(s.a);
+      $clock.textContent = fmt(clock) + " / 30,0 s"; markShot(clock);
+    });
+    $shots.appendChild(b);
+  });
+  var shotEls = [].slice.call($shots.children);
+  function markShot(t) {
+    for (var i = 0; i < SHOTS.length; i++) {
+      shotEls[i].setAttribute("aria-current", String(t >= SHOTS[i].a && t < SHOTS[i].b));
+    }
+  }
+
+  // recording mode
+  function setRec(on) {
+    document.body.classList.toggle("rec", on);
+    layout();
+  }
+  document.getElementById("rec").addEventListener("click", function () { setRec(true); });
+  document.getElementById("exit").addEventListener("click", function () { setRec(false); });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") {
+      if (e.key !== " " && e.key !== "Escape") return;
+    }
+    if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+    else if (e.key === "r" || e.key === "R") { clock = 0; $scrub.value = "0"; markShot(0); }
+    else if (e.key === "Escape") { setRec(false); }
+  });
+
+  window.addEventListener("resize", layout);
+  layout();
+  markShot(0);
+  requestAnimationFrame(tick);
+  if (!reduced) setPlaying(true);
+})();
+</script>

@@ -20,3 +20,7 @@
 # Developer-only source checker build output.
 tools/SourceCheck/bin/
 tools/SourceCheck/obj/
+
+# Python bytecode from the promo build scripts
+__pycache__/
+*.pyc
