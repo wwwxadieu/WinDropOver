@@ -88,4 +88,12 @@ internal static class NativeConstants
     public const uint SHGFI_SMALLICON = 0x000000001;
     public const uint SHGFI_USEFILEATTRIBUTES = 0x000000010;
     public const uint FILE_ATTRIBUTE_NORMAL = 0x00000080;
+
+    // SHFileOperation
+    public const uint FO_DELETE = 0x0003;
+    /// <summary>The flag that makes the deletion recoverable — without it the shell deletes outright.</summary>
+    public const ushort FOF_ALLOWUNDO = 0x0040;
+    public const ushort FOF_NOCONFIRMATION = 0x0010;
+    public const ushort FOF_SILENT = 0x0004;
+    public const ushort FOF_NOERRORUI = 0x0400;
 }

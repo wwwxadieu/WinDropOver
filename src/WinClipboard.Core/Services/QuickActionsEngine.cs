@@ -76,6 +76,14 @@ public sealed class QuickActionsEngine : IQuickActionsEngine
                     File.Copy(RequireFilePath(item), DestinationPath(item, RequireTargetPath(targetPath)), overwrite: false);
                     break;
 
+                case QuickActionType.DeleteToRecycleBin:
+                    await _shellLauncher.RecycleAsync(RequireFilePath(item), ct);
+                    break;
+
+                case QuickActionType.DeletePermanently:
+                    DeleteOutright(RequireFilePath(item));
+                    break;
+
                 case QuickActionType.CopyToClipboard:
                     if (item.Type == ShelfItemType.File)
                     {
@@ -104,6 +112,22 @@ public sealed class QuickActionsEngine : IQuickActionsEngine
         catch (Exception ex)
         {
             return new QuickActionItemResult { ShelfItemId = item.Id, Succeeded = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <summary>
+    /// The unrecoverable delete. Handles folders as well as files: a shelf holds whatever was
+    /// dragged onto it, and Explorer lets you drag a folder.
+    /// </summary>
+    private static void DeleteOutright(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
+        }
+        else
+        {
+            File.Delete(path);
         }
     }
 

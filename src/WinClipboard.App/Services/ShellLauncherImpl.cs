@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows.Threading;
 using WinClipboard.Core.Abstractions;
 
@@ -45,4 +46,19 @@ public sealed class ShellLauncherImpl : IShellLauncher
         });
         return tcs.Task;
     }
+
+    /// <summary>
+    /// Off the UI thread: SHFileOperation is synchronous and talks to the shell, which for a
+    /// large folder or a file on a network share can take seconds. Blocking the dispatcher here
+    /// would freeze the card mid-drop.
+    /// </summary>
+    public Task RecycleAsync(string path, CancellationToken ct = default) => Task.Run(() =>
+    {
+        if (!WinClipboard.Interop.RecycleBin.Send(path))
+        {
+            // The engine turns a throw into that item's failure message; returning quietly would
+            // report a delete that never happened as a success.
+            throw new IOException($"Không đưa được vào thùng rác: {path}");
+        }
+    }, ct);
 }

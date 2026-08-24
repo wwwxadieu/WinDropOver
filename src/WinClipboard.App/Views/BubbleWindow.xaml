@@ -335,8 +335,50 @@
                                 Style="{StaticResource BigActionButtonStyle}" AllowDrop="True"
                                 DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
                                 DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
+                        <!--
+                            The only tile that destroys anything, so it is the only red one. It
+                            never acts on the drop itself: it asks first, and the two answers are
+                            two different actions rather than one action with a checkbox.
+                        -->
+                        <Button Content="Xoá" Tag="{StaticResource IconTrash}"
+                                ToolTip="Thả vào đây để xoá tệp — sẽ hỏi thùng rác hay xoá hẳn"
+                                CommandParameter="{x:Static models:QuickActionType.DeleteToRecycleBin}"
+                                Style="{StaticResource BigDangerButtonStyle}" AllowDrop="True"
+                                DragEnter="OnActionDragEnter" DragOver="OnActionDragOver"
+                                DragLeave="OnActionDragLeave" Drop="OnActionDrop" Click="OnActionClicked" />
                     </UniformGrid>
                 </Grid>
+            </Border>
+
+            <!--
+                The delete question. Two buttons because there are genuinely two operations here,
+                and a checkbox marked "permanently" next to one OK button is how people delete
+                things they meant to keep. The recoverable one is first and plain; the one with no
+                undo is red and says so on its own line.
+            -->
+            <Border x:Name="DeleteConfirm" Grid.Row="1" Grid.RowSpan="3" Visibility="Collapsed"
+                    Background="#F2101014" CornerRadius="12" Margin="0,0,0,2">
+                <StackPanel VerticalAlignment="Center" Margin="18,0">
+                    <Viewbox Width="30" Height="30" HorizontalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="{StaticResource IconTrash}" Stroke="{StaticResource DangerBrush}"
+                                  StrokeThickness="1.6" StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock x:Name="DeleteConfirmText" Text="Xoá 0 tệp khỏi ổ đĩa?"
+                               Foreground="{StaticResource TextPrimaryBrush}" FontSize="13"
+                               FontWeight="SemiBold" TextAlignment="Center" Margin="0,10,0,0"
+                               TextWrapping="Wrap" />
+                    <Button Content="Đưa vào thùng rác" Margin="0,14,0,0"
+                            Style="{StaticResource AccentButtonStyle}" Click="OnDeleteToRecycleBinClicked" />
+                    <Button Content="Xoá vĩnh viễn" Margin="0,8,0,0"
+                            Style="{StaticResource DangerTextButtonStyle}" Click="OnDeletePermanentlyClicked" />
+                    <TextBlock Text="Không khôi phục lại được" Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="10" TextAlignment="Center" Margin="0,4,0,0" />
+                    <Button Content="Huỷ" Margin="0,12,0,0" Style="{StaticResource PillButtonStyle}"
+                            HorizontalAlignment="Center" Click="OnDeleteCancelClicked" />
+                </StackPanel>
             </Border>
 
             <!--

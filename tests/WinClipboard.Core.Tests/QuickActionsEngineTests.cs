@@ -216,4 +216,64 @@ public class QuickActionsEngineTests : IDisposable
         Assert.True(result.AllSucceeded);
         Assert.Contains("hello", _clipboardWriter.WrittenText);
     }
+
+    [Fact]
+    public async Task DeletePermanently_RemovesTheFileFromDisk()
+    {
+        var source = NewSourceFile("gone.txt");
+        var shelfId = await NewShelfWithFileAsync(source);
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.DeletePermanently);
+
+        Assert.True(result.ItemResults.Single().Succeeded);
+        Assert.False(File.Exists(source));
+    }
+
+    [Fact]
+    public async Task DeletePermanently_RemovesAFolderAndEverythingInIt()
+    {
+        // A shelf holds whatever was dragged onto it, and Explorer lets you drag a folder.
+        var folder = Path.Combine(_tempRoot, "bundle");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "inside.txt"), "x");
+        var shelfId = await NewShelfWithFileAsync(folder);
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.DeletePermanently);
+
+        Assert.True(result.ItemResults.Single().Succeeded);
+        Assert.False(Directory.Exists(folder));
+    }
+
+    [Fact]
+    public async Task DeleteToRecycleBin_GoesThroughTheShellRatherThanDeletingDirectly()
+    {
+        // The distinction is the whole point: a File.Delete would leave nothing to restore, which
+        // is exactly what the recoverable half of the delete tile promises.
+        var source = NewSourceFile("recycled.txt");
+        var shelfId = await NewShelfWithFileAsync(source);
+
+        var result = await _engine.ExecuteAsync(shelfId, QuickActionType.DeleteToRecycleBin);
+
+        Assert.True(result.ItemResults.Single().Succeeded);
+        Assert.Equal([source], _shellLauncher.RecycleCalls);
+        Assert.True(File.Exists(source), "the engine must leave the deletion to the shell");
+    }
+
+    [Fact]
+    public async Task Delete_ReportsAFailedItemWithoutStoppingTheBatch()
+    {
+        var present = NewSourceFile("here.txt");
+        var missing = Path.Combine(_tempRoot, "no-such-folder", "ghost.txt");
+
+        var result = await _engine.ExecuteOnItemsAsync(
+            [
+                new ShelfItem { ShelfId = 1, Type = ShelfItemType.File, FilePath = missing },
+                new ShelfItem { ShelfId = 1, Type = ShelfItemType.File, FilePath = present }
+            ],
+            QuickActionType.DeletePermanently);
+
+        Assert.False(result.ItemResults[0].Succeeded);
+        Assert.True(result.ItemResults[1].Succeeded);
+        Assert.False(File.Exists(present));
+    }
 }

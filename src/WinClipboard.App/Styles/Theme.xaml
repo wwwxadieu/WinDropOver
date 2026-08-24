@@ -81,6 +81,8 @@
     <PathGeometry x:Key="IconCopy" Figures="M 9,9 L 20,9 L 20,20 L 9,20 Z M 5,15 L 4,15 L 4,4 L 15,4 L 15,5" />
     <PathGeometry x:Key="IconZip" Figures="M 3,9 L 21,9 L 21,20 L 3,20 Z M 3,9 L 5.5,4 L 18.5,4 L 21,9 M 12,9 L 12,20" />
     <PathGeometry x:Key="IconBolt" Figures="M 13,3 L 6,13 L 11.5,13 L 11,21 L 18,11 L 12.5,11 Z" />
+    <!-- A bin with a cross on it: gone, and not coming back. -->
+    <PathGeometry x:Key="IconTrashPermanent" Figures="M 5,7 L 19,7 M 10,7 L 10,5 L 14,5 L 14,7 M 6.5,7 L 7.5,19 L 16.5,19 L 17.5,7 M 10,10.5 L 14,15.5 M 14,10.5 L 10,15.5" />
     <PathGeometry x:Key="IconPlus" Figures="M 6,12 L 18,12 M 12,6 L 12,18" />
     <!-- Alone inside the checkbox, so it is not competing with a neighbour for size. -->
     <PathGeometry x:Key="IconCheck" Figures="M 19,7 L 9.5,16.5 L 5,12" />
@@ -351,6 +353,11 @@
         </Setter>
     </Style>
 
+    <!-- The same tile, but red: this one deletes files, and it must not look like the others. -->
+    <Style x:Key="BigDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource BigActionButtonStyle}">
+        <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+    </Style>
+
     <!--
         One sheet in the fanned stack on the shelf card.
 
@@ -519,6 +526,32 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        The destructive choice in a confirm: red text on a bare surface rather than a red filled
+        button. A filled red button next to a filled accent button reads as two equal options,
+        and these two are not equal — one is undoable and one is not.
+    -->
+    <Style x:Key="DangerTextButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="8"
+                            BorderBrush="{StaticResource DangerBrush}" BorderThickness="1"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#26EF4444" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
