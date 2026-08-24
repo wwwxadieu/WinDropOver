@@ -210,6 +210,7 @@ public partial class BubbleWindow : Window
             return;
         }
         _closing = true;
+        CollapseActions();
         // The whole window, not just the card: its background is Transparent, which in WPF is
         // still a surface that swallows clicks.
         IsHitTestVisible = false;
@@ -675,8 +676,15 @@ public partial class BubbleWindow : Window
 
     private void OnDragOver(object sender, DragEventArgs e) => SetDropEffect(e);
 
-    private void OnDragLeave(object sender, DragEventArgs e) =>
+    private void OnDragLeave(object sender, DragEventArgs e)
+    {
         RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
+        // The drag has left the card altogether; nothing is being aimed at any more.
+        if (!IsMouseOver)
+        {
+            CollapseActions();
+        }
+    }
 
     private static void SetDropEffect(DragEventArgs e)
     {
@@ -693,6 +701,7 @@ public partial class BubbleWindow : Window
     {
         e.Handled = true;
         _dropLandedOnShelf = true;
+        CollapseActions();
         RootBackground.BorderBrush = (Brush)FindResource("SurfaceBorderBrush");
 
         // Dropped back onto the shelf it came from. Nothing to add — it is already here — and
@@ -886,11 +895,70 @@ public partial class BubbleWindow : Window
     }
 
     /// <summary>Runs the dropped-on action against what was dragged: items from this shelf are matched by id, anything from outside is collected onto the shelf first so one gesture both collects and acts.</summary>
+    /// <summary>
+    /// Opening the actions is what a drag arriving over the button means — there is no other
+    /// reason to be there holding a file.
+    /// </summary>
+    private void OnActionToggleDragEnter(object sender, DragEventArgs e)
+    {
+        SetActionDropEffect(sender, e);
+        if (e.Effects != DragDropEffects.None)
+        {
+            ExpandActions();
+        }
+    }
+
+    /// <summary>
+    /// Folds the actions away when the pointer leaves the whole panel.
+    ///
+    /// The bounds check is the point: WPF raises DragLeave on the panel every time the pointer
+    /// crosses from it onto one of its own tiles, because the event bubbles up from the child.
+    /// Acting on those would close the panel at the exact moment the user aimed at something.
+    /// </summary>
+    private void OnActionOverlayDragLeave(object sender, DragEventArgs e)
+    {
+        var point = e.GetPosition(ActionOverlay);
+        var stillInside = point.X >= 0 && point.Y >= 0
+                          && point.X <= ActionOverlay.ActualWidth
+                          && point.Y <= ActionOverlay.ActualHeight;
+        if (!stillInside)
+        {
+            CollapseActions();
+        }
+    }
+
+    /// <summary>Clicking opens the same panel, for running an action on the whole shelf without a drag.</summary>
+    private void OnActionToggleClicked(object sender, RoutedEventArgs e)
+    {
+        if (ActionOverlay.Visibility == Visibility.Visible)
+        {
+            CollapseActions();
+        }
+        else
+        {
+            ExpandActions();
+        }
+    }
+
+    private void ExpandActions()
+    {
+        ActionOverlay.Visibility = Visibility.Visible;
+        ActionToggle.Visibility = Visibility.Hidden;
+        RestartAutoHideTimer();
+    }
+
+    private void CollapseActions()
+    {
+        ActionOverlay.Visibility = Visibility.Collapsed;
+        ActionToggle.Visibility = Visibility.Visible;
+    }
+
     private async void OnActionDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
         _dropLandedOnShelf = true;
-        if (sender is not Button { Tag: QuickActionType action } button)
+        CollapseActions();
+        if (sender is not Button { CommandParameter: QuickActionType action } button)
         {
             return;
         }
@@ -929,7 +997,7 @@ public partial class BubbleWindow : Window
 
     private async void OnActionClicked(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: QuickActionType action })
+        if (sender is not Button { CommandParameter: QuickActionType action })
         {
             return;
         }

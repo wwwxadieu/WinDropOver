@@ -74,6 +74,13 @@
     <PathGeometry x:Key="IconChevronUp" Figures="M 18,15 L 12,9 L 6,15" />
     <PathGeometry x:Key="IconChevronDown" Figures="M 6,9 L 12,15 L 18,9" />
     <PathGeometry x:Key="IconChevronRight" Figures="M 9,6 L 15,12 L 9,18" />
+
+    <!-- The three quick actions, as the shapes they are: a thing going somewhere, a thing
+         duplicated, a thing boxed up. -->
+    <PathGeometry x:Key="IconMove" Figures="M 3,12 L 13,12 M 9.5,8.5 L 13,12 L 9.5,15.5 M 17,4 L 21,4 L 21,20 L 17,20" />
+    <PathGeometry x:Key="IconCopy" Figures="M 9,9 L 20,9 L 20,20 L 9,20 Z M 5,15 L 4,15 L 4,4 L 15,4 L 15,5" />
+    <PathGeometry x:Key="IconZip" Figures="M 3,9 L 21,9 L 21,20 L 3,20 Z M 3,9 L 5.5,4 L 18.5,4 L 21,9 M 12,9 L 12,20" />
+    <PathGeometry x:Key="IconBolt" Figures="M 13,3 L 6,13 L 11.5,13 L 11,21 L 18,11 L 12.5,11 Z" />
     <PathGeometry x:Key="IconPlus" Figures="M 6,12 L 18,12 M 12,6 L 12,18" />
     <!-- Alone inside the checkbox, so it is not competing with a neighbour for size. -->
     <PathGeometry x:Key="IconCheck" Figures="M 19,7 L 9.5,16.5 L 5,12" />
@@ -295,6 +302,48 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource ControlHoverBrush}" />
                             <Setter TargetName="Icon" Property="Stroke" Value="{StaticResource DangerBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        A quick action as a large drop target: icon above label, filling its share of the row.
+        These only exist while a drag is hovering the action button, and the whole point of
+        opening them is that they are big enough to aim at mid-drag — the flat little row they
+        replaced asked the user to hit a 60x28 rectangle while holding a file.
+    -->
+    <Style x:Key="BigActionButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource ControlBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Margin" Value="4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root" Background="{TemplateBinding Background}" CornerRadius="12"
+                            BorderBrush="{StaticResource SurfaceBorderBrush}" BorderThickness="1">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <Viewbox Width="26" Height="26" HorizontalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path x:Name="Icon" Data="{TemplateBinding Tag}"
+                                          Stroke="{TemplateBinding Foreground}" StrokeThickness="1.6"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="{TemplateBinding Content}" FontSize="11" Margin="0,7,0,0"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <!-- Opacity rather than a Background setter, so the accent fill the drop
+                             handler assigns is not overwritten the moment the pointer arrives. -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.75" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
