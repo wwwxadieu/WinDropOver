@@ -309,7 +309,12 @@
             <Border x:Name="ActionOverlay" Grid.Row="1" Grid.RowSpan="3" Visibility="Collapsed"
                     Background="{StaticResource ScrimBrush}" BorderBrush="{StaticResource SurfaceBorderBrush}"
                     BorderThickness="1" CornerRadius="12" Margin="0,0,0,2" AllowDrop="True"
-                    DragOver="OnActionDragOver">
+                    DragOver="OnActionDragOver" RenderTransformOrigin="0.5,1">
+                <!-- Origin at the bottom edge: the panel grows up out of the button it replaces,
+                     rather than expanding from its own middle towards a button that is not there. -->
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="ActionScale" ScaleX="1" ScaleY="1" />
+                </Border.RenderTransform>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

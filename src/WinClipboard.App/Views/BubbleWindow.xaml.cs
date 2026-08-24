@@ -222,7 +222,7 @@ public partial class BubbleWindow : Window
             return;
         }
         _closing = true;
-        CollapseActions();
+        CollapseActions(animate: false);
         // Going away is an answer too, and the answer is no.
         AnswerDelete(null);
         // The whole window, not just the card: its background is Transparent, which in WPF is
@@ -987,7 +987,7 @@ public partial class BubbleWindow : Window
             return;
         }
 
-        if (ActionOverlay.Visibility == Visibility.Visible)
+        if (_actionsOpen)
         {
             if (!PointerInside(e, ActionOverlay))
             {
@@ -1003,7 +1003,7 @@ public partial class BubbleWindow : Window
     /// <summary>Clicking opens the same panel, for running an action on the whole shelf without a drag.</summary>
     private void OnActionToggleClicked(object sender, RoutedEventArgs e)
     {
-        if (ActionOverlay.Visibility == Visibility.Visible)
+        if (_actionsOpen)
         {
             CollapseActions();
         }
@@ -1013,23 +1013,36 @@ public partial class BubbleWindow : Window
         }
     }
 
+    /// <summary>
+    /// Whether the panel is meant to be open.
+    ///
+    /// Tracked separately from Visibility because the closing animation needs the panel to stay
+    /// visible while it plays. Asking Visibility during those hundred milliseconds gets the
+    /// previous answer, which would swallow a reopen and let a closing panel keep claiming the
+    /// pointer.
+    /// </summary>
+    private bool _actionsOpen;
+
     private void ExpandActions()
     {
         // Already open: opening again would restart the idle timer on every mouse move, and a
         // panel that is repeatedly told to appear is how the last flicker started.
-        if (ActionOverlay.Visibility == Visibility.Visible)
+        if (_actionsOpen)
         {
             return;
         }
+        _actionsOpen = true;
 
         ActionOverlay.Visibility = Visibility.Visible;
         ActionToggle.Visibility = Visibility.Hidden;
+        PlayActionsOpenAnimation();
         RestartAutoHideTimer();
     }
 
-    private void CollapseActions()
+    private void CollapseActions() => CollapseActions(animate: true);
+
+    private void CollapseActions(bool animate)
     {
-        ActionOverlay.Visibility = Visibility.Collapsed;
         ActionToggle.Visibility = Visibility.Visible;
 
         // A tile lit at the moment of the drop never receives a DragLeave, and would still be lit
@@ -1039,6 +1052,120 @@ public partial class BubbleWindow : Window
             tile.ClearValue(BackgroundProperty);
             tile.ClearValue(BorderBrushProperty);
         }
+
+        if (!_actionsOpen)
+        {
+            ActionOverlay.Visibility = Visibility.Collapsed;
+            return;
+        }
+        _actionsOpen = false;
+
+        if (animate)
+        {
+            PlayActionsCloseAnimation();
+        }
+        else
+        {
+            // The whole card is going away; a panel fading out on a window that is already gone
+            // would leave it transparent and still marked visible the next time it opens.
+            StopActionsAnimations();
+            ActionOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    // ---------------- The panel's own animation ----------------
+
+    private static readonly Duration ActionsOpenDuration = new(TimeSpan.FromMilliseconds(170));
+    private static readonly Duration ActionsCloseDuration = new(TimeSpan.FromMilliseconds(110));
+
+    /// <summary>
+    /// The panel grows up out of the button, and the tiles arrive one after another rather than
+    /// all at once. The stagger is what makes four rectangles read as a thing opening instead of
+    /// four rectangles existing — and the pointer is already at the bottom of the card when this
+    /// runs, so the tile nearest it lands first.
+    /// </summary>
+    private void PlayActionsOpenAnimation()
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        ActionOverlay.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(110))));
+        ActionScale.BeginAnimation(ScaleTransform.ScaleYProperty,
+            new DoubleAnimation(0.90, 1, ActionsOpenDuration) { EasingFunction = ease });
+        ActionScale.BeginAnimation(ScaleTransform.ScaleXProperty,
+            new DoubleAnimation(0.96, 1, ActionsOpenDuration) { EasingFunction = ease });
+
+        var tiles = ActionTiles.Children.OfType<Button>().ToList();
+        for (var i = 0; i < tiles.Count; i++)
+        {
+            var slide = TileSlide(tiles[i]);
+            // Bottom row first: it is the half nearest the button the drag just came from.
+            var order = i < 2 ? i + 2 : i - 2;
+            var delay = TimeSpan.FromMilliseconds(40 * order);
+
+            tiles[i].BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(140)))
+            {
+                BeginTime = delay
+            });
+            slide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(12, 0, new Duration(TimeSpan.FromMilliseconds(200)))
+            {
+                BeginTime = delay,
+                EasingFunction = ease
+            });
+        }
+    }
+
+    /// <summary>Away faster than it arrived, and only hidden once it has finished — a Collapsed panel cannot animate.</summary>
+    private void PlayActionsCloseAnimation()
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        var fade = new DoubleAnimation(0, ActionsCloseDuration) { EasingFunction = ease };
+        fade.Completed += (_, _) =>
+        {
+            // A reopen during the close clears the flag again; hiding here would put away the
+            // panel that was just asked for.
+            if (!_actionsOpen)
+            {
+                StopActionsAnimations();
+                ActionOverlay.Visibility = Visibility.Collapsed;
+            }
+        };
+
+        ActionOverlay.BeginAnimation(OpacityProperty, fade);
+        ActionScale.BeginAnimation(ScaleTransform.ScaleYProperty,
+            new DoubleAnimation(0.94, ActionsCloseDuration) { EasingFunction = ease });
+    }
+
+    /// <summary>Clears every clock and returns the panel to its resting values, so the next open starts from a known state rather than from wherever the last close stopped.</summary>
+    private void StopActionsAnimations()
+    {
+        ActionOverlay.BeginAnimation(OpacityProperty, null);
+        ActionOverlay.Opacity = 1;
+        ActionScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        ActionScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        ActionScale.ScaleX = 1;
+        ActionScale.ScaleY = 1;
+
+        foreach (var tile in ActionTiles.Children.OfType<Button>())
+        {
+            tile.BeginAnimation(OpacityProperty, null);
+            tile.Opacity = 1;
+            var slide = TileSlide(tile);
+            slide.BeginAnimation(TranslateTransform.YProperty, null);
+            slide.Y = 0;
+        }
+    }
+
+    /// <summary>The transform a tile slides on, created once and kept — an animation needs the same object to move from one run to the next.</summary>
+    private static TranslateTransform TileSlide(Button tile)
+    {
+        if (tile.RenderTransform is TranslateTransform existing)
+        {
+            return existing;
+        }
+        var slide = new TranslateTransform();
+        tile.RenderTransform = slide;
+        return slide;
     }
 
     private async void OnActionDrop(object sender, DragEventArgs e)
@@ -1164,7 +1291,7 @@ public partial class BubbleWindow : Window
             ? "Xoá tệp này khỏi ổ đĩa?"
             : $"Xoá {itemCount} tệp khỏi ổ đĩa?";
         DeleteConfirm.Visibility = Visibility.Visible;
-        CollapseActions();
+        CollapseActions(animate: false);
 
         // The card must not put itself away while it is holding a question.
         _autoHideTimer.Stop();
