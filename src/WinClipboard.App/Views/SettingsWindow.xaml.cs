@@ -40,6 +40,8 @@ public partial class SettingsWindow : Window
         EdgeTopCheck.IsChecked = settings.EnabledEdges.Contains(ScreenEdge.Top);
         EdgeBottomCheck.IsChecked = settings.EnabledEdges.Contains(ScreenEdge.Bottom);
 
+        RequireActiveDragCheck.IsChecked = settings.RequireActiveDragAndDrop;
+
         EdgeTriggerCheck.IsChecked = settings.EdgeTriggerEnabled;
         EdgeMarginBox.Text = settings.EdgeMarginPx.ToString();
 
@@ -79,6 +81,7 @@ public partial class SettingsWindow : Window
         if (EdgeBottomCheck.IsChecked == true) edges.Add(ScreenEdge.Bottom);
         settings.EnabledEdges = edges;
 
+        settings.RequireActiveDragAndDrop = RequireActiveDragCheck.IsChecked == true;
         settings.EdgeTriggerEnabled = EdgeTriggerCheck.IsChecked == true;
         if (int.TryParse(EdgeMarginBox.Text, out var margin) && margin > 0)
         {

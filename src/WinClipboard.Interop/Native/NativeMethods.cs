@@ -86,6 +86,14 @@ internal static class NativeMethods
     public static extern bool GetCursorPos(out POINT lpPoint);
 
     [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetCursorInfo(ref CURSORINFO pci);
+
+    /// <summary>With hInstance = NULL and an IDC_* id, returns the shared handle for one of the system's own cursors - nothing to destroy afterwards.</summary>
+    [DllImport("user32.dll", EntryPoint = "LoadCursorW", SetLastError = true)]
+    public static extern IntPtr LoadCursor(IntPtr hInstance, IntPtr lpCursorName);
+
+    [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll", SetLastError = true)]

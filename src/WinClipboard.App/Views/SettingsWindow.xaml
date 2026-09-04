@@ -44,6 +44,13 @@
                         <TextBlock Text="Ba cách mở shelf, bật/tắt độc lập nhau."
                                    Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,14" />
 
+                        <CheckBox x:Name="RequireActiveDragCheck" Content="Chỉ mở khi đang thực sự kéo tệp" />
+                        <TextBlock Text="Nhấn giữ chuột hoặc quét chọn nhiều mục sẽ không mở shelf. Tắt nếu máy bạn nhận diện sai."
+                                   Style="{StaticResource FieldLabelStyle}" Margin="27,4,0,0" FontSize="11"
+                                   TextWrapping="Wrap" />
+
+                        <Border Height="1" Background="{StaticResource SurfaceBorderBrush}" Margin="0,16,0,14" />
+
                         <!-- Kéo ra rìa -->
                         <CheckBox x:Name="EdgeTriggerCheck" Content="Kéo tệp ra rìa màn hình" />
                         <StackPanel Orientation="Horizontal" Margin="27,8,0,0">

@@ -18,6 +18,16 @@ internal struct RECT
     public int Bottom;
 }
 
+/// <summary>Payload of GetCursorInfo: which cursor is on screen right now, and where.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct CURSORINFO
+{
+    public int cbSize;
+    public int flags;
+    public IntPtr hCursor;
+    public POINT ptScreenPos;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 internal struct MSG
 {

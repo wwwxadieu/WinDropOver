@@ -1,3 +1,4 @@
+using WinClipboard.Core.Abstractions;
 using WinClipboard.Core.Models;
 using WinClipboard.Core.Services;
 using WinClipboard.Interop.Hooks;
@@ -23,6 +24,12 @@ public sealed class DragTriggerEventArgs : EventArgs
 /// precedent and that Dropover used edge-drag — so edge-drag was built first and shake added
 /// later; both are kept and the user picks.
 ///
+/// None of the three may fire until a drag-and-drop has actually been observed. Button-down plus
+/// movement past a threshold, which is all the hook can see, describes a rubber-band selection or
+/// an idly gripped mouse just as well as it describes dragging a file - and while that was the
+/// whole test, both of those opened the shelf. <see cref="ActiveDragGate"/> and
+/// <see cref="IActiveDragProbe"/> supply the missing half.
+///
 /// Runs entirely off events from the two low-level hooks, so it must be wired up on the same
 /// background thread that owns <see cref="Win32MessageWindow"/>.
 /// </summary>
@@ -31,6 +38,8 @@ public sealed class ShelfDragTrigger
     private readonly DragTriggerOptions _options;
     private readonly Func<ScreenRect> _getVirtualScreenBounds;
     private readonly ShakeDetector _shakeDetector;
+    private readonly ActiveDragGate _dragGate = new();
+    private readonly IActiveDragProbe _dragProbe;
 
     private bool _leftButtonDown;
     private bool _isDragging;
@@ -41,14 +50,17 @@ public sealed class ShelfDragTrigger
 
     public event EventHandler<DragTriggerEventArgs>? Triggered;
 
+    /// <param name="dragProbe">How to tell a real drag from any other press-and-hold. Defaults to the cursor-based probe; injectable so tests need not run one.</param>
     public ShelfDragTrigger(
         DragTriggerOptions options,
         Func<ScreenRect> getVirtualScreenBounds,
         LowLevelMouseHook mouseHook,
-        LowLevelKeyboardHook keyboardHook)
+        LowLevelKeyboardHook keyboardHook,
+        IActiveDragProbe? dragProbe = null)
     {
         _options = options;
         _getVirtualScreenBounds = getVirtualScreenBounds;
+        _dragProbe = dragProbe ?? new OleDragCursorProbe();
         _shakeDetector = new ShakeDetector
         {
             MinSegmentDistancePx = options.ShakeSegmentDistancePx,
@@ -76,6 +88,10 @@ public sealed class ShelfDragTrigger
             _downX = e.X;
             _downY = e.Y;
             _shakeDetector.Reset();
+            _dragGate.Reset();
+            // Has to happen now, while the pointer is definitely not dragging anything, because
+            // that is the baseline the probe compares every later sample against.
+            _dragProbe.OnPointerPressed();
             return;
         }
 
@@ -85,6 +101,7 @@ public sealed class ShelfDragTrigger
             _isDragging = false;
             _alreadyTriggeredThisDrag = false;
             _shakeDetector.Reset();
+            _dragGate.Reset();
             return;
         }
 
@@ -97,6 +114,23 @@ public sealed class ShelfDragTrigger
         {
             _isDragging = DragThresholdDetector.HasExceededThreshold(_downX, _downY, e.X, e.Y, _options.DragThresholdPx);
             if (!_isDragging)
+            {
+                return;
+            }
+        }
+
+        // Nothing below may fire on a hold that is not carrying anything. The probe is only asked
+        // until the gate settles one way or the other - once it has, this costs a bool.
+        if (_options.RequireActiveDragAndDrop && !_dragGate.IsConfirmed)
+        {
+            var confirmedNow = !_dragGate.HasGivenUp
+                && _dragGate.Update(pastDragThreshold: true, _dragProbe.IsDragInProgress(), e.TimestampMs);
+
+            // Whatever the pointer did before the drag existed - a selection sweep, a wobble while
+            // the hand settled - must not be banked towards a shake that fires the instant it does.
+            _shakeDetector.Reset();
+
+            if (!confirmedNow)
             {
                 return;
             }
