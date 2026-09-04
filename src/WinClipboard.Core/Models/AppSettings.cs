@@ -7,6 +7,9 @@ public sealed class AppSettings
     public List<ScreenEdge> EnabledEdges { get; set; } = [ScreenEdge.Right];
     public int EdgeMarginPx { get; set; } = 10;
     public int DragThresholdPx { get; set; } = 6;
+
+    /// <summary>Only let the shelf open while a drag-and-drop is genuinely under way — see <see cref="DragTriggerOptions.RequireActiveDragAndDrop"/>.</summary>
+    public bool RequireActiveDragAndDrop { get; set; } = true;
     public bool EdgeTriggerEnabled { get; set; } = true;
     public bool HotkeyTriggerEnabled { get; set; } = true;
     public ModifierHoldKey HoldKey { get; set; } = ModifierHoldKey.RightShift;

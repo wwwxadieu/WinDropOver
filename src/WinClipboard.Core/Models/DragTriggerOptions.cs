@@ -12,6 +12,14 @@ public sealed class DragTriggerOptions
     /// <summary>How far the cursor must move from the mouse-down point before a drag is assumed to be in progress.</summary>
     public int DragThresholdPx { get; set; } = 6;
 
+    /// <summary>
+    /// Require an actual drag-and-drop before any trigger may fire, instead of treating every
+    /// button-down-and-move as a drag. Off, the shelf opens on a rubber-band selection or an idly
+    /// held mouse button; there is no reason to turn it off beyond a machine where the detection
+    /// misbehaves, which is why it is a setting at all.
+    /// </summary>
+    public bool RequireActiveDragAndDrop { get; set; } = true;
+
     /// <summary>Virtual-key code of the hold-while-dragging hotkey (e.g. VK_RSHIFT). Null disables the hotkey trigger.</summary>
     public int? HoldKeyVirtualCode { get; set; }
 

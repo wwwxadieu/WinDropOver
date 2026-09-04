@@ -168,6 +168,7 @@ public partial class App : System.Windows.Application
         EnabledEdges = settings.EnabledEdges,
         EdgeMarginPx = settings.EdgeMarginPx,
         DragThresholdPx = settings.DragThresholdPx,
+        RequireActiveDragAndDrop = settings.RequireActiveDragAndDrop,
         EdgeTriggerEnabled = settings.EdgeTriggerEnabled,
         HotkeyTriggerEnabled = settings.HotkeyTriggerEnabled,
         HoldKeyVirtualCode = ModifierHoldKeyMap.ToVirtualKeyCode(settings.HoldKey),
