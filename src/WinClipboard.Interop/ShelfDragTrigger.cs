@@ -60,7 +60,7 @@ public sealed class ShelfDragTrigger
     {
         _options = options;
         _getVirtualScreenBounds = getVirtualScreenBounds;
-        _dragProbe = dragProbe ?? new OleDragCursorProbe();
+        _dragProbe = dragProbe ?? new ShellDragProbe();
         _shakeDetector = new ShakeDetector
         {
             MinSegmentDistancePx = options.ShakeSegmentDistancePx,
