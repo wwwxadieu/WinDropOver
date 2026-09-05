@@ -392,6 +392,13 @@ public partial class BubbleWindow : Window
 
         /// <summary>Whether this sheet was on screen before the current rebuild — the difference between reshaping the fan and a sheet arriving.</summary>
         public bool WasVisible { get; set; }
+
+        /// <summary>
+        /// Bumped whenever this slot's fate changes. A departure animation finishes on a timer,
+        /// by which point the slot may have been handed to a different file — the token is how
+        /// the completion knows whether the sheet it was about to clear is still the one it left.
+        /// </summary>
+        public int LeaveToken { get; set; }
     }
 
     private StackSheet[]? _stackSheets;
@@ -431,7 +438,15 @@ public partial class BubbleWindow : Window
             var sheet = StackSheets[slot];
             if (slot >= shown)
             {
-                HideSheet(sheet);
+                if (sheet.WasVisible)
+                {
+                    Leave(sheet);
+                    sheet.WasVisible = false;
+                }
+                else
+                {
+                    ClearSheet(sheet);
+                }
                 continue;
             }
 
@@ -485,11 +500,17 @@ public partial class BubbleWindow : Window
     /// </summary>
     private static void Arrive(StackSheet sheet, double angle, double offsetX)
     {
+        // This slot is in use again, so a departure still running on it must not clear it when
+        // it finishes.
+        sheet.LeaveToken++;
+
         // Starting position assigned rather than animated, so there is nothing to move from.
         sheet.Rotate.BeginAnimation(RotateTransform.AngleProperty, null);
         sheet.Translate.BeginAnimation(TranslateTransform.XProperty, null);
+        sheet.Translate.BeginAnimation(TranslateTransform.YProperty, null);
         sheet.Rotate.Angle = angle;
         sheet.Translate.X = offsetX;
+        sheet.Translate.Y = 0;
 
         var pop = new DoubleAnimation(0.55, 1, ArriveDuration)
         {
@@ -500,14 +521,119 @@ public partial class BubbleWindow : Window
         sheet.Card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(150))));
     }
 
-    private static void HideSheet(StackSheet sheet)
+    private static readonly Duration LeaveDuration = new(TimeSpan.FromMilliseconds(190));
+
+    /// <summary>
+    /// A sheet coming off the pile: it shrinks, drops and fades before the slot is cleared. The
+    /// mirror of <see cref="Arrive"/>, and there for the same reason — the shelf's job is to say
+    /// what became of your files, and three sheets silently being two on the next frame says
+    /// nothing at all. It earns its place most after a delete, the one action whose result the
+    /// user cannot go and look at afterwards.
+    /// </summary>
+    private static void Leave(StackSheet sheet)
     {
+        var token = ++sheet.LeaveToken;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        var shrink = new DoubleAnimation(0.7, LeaveDuration) { EasingFunction = ease };
+        sheet.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        sheet.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
+
+        // Downwards: a sheet that shrinks in place reads as receding, and these are not receding.
+        sheet.Translate.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(sheet.Translate.Y + 16, LeaveDuration) { EasingFunction = ease });
+
+        var fade = new DoubleAnimation(0, LeaveDuration) { EasingFunction = ease };
+        fade.Completed += (_, _) =>
+        {
+            // Cleared only if this slot is still the one that left. Between here and the start of
+            // the animation a reload may have given it to another file, which Arrive marks by
+            // moving the token on.
+            if (sheet.LeaveToken == token)
+            {
+                ClearSheet(sheet);
+            }
+        };
+        sheet.Card.BeginAnimation(OpacityProperty, fade);
+    }
+
+    private static readonly Duration RowLeaveDuration = new(TimeSpan.FromMilliseconds(170));
+
+    /// <summary>
+    /// Fades and shrinks the rows of items that are about to come off, before the list is rebuilt
+    /// without them.
+    ///
+    /// The stack has <see cref="Leave"/>, but the stack is not what is on screen once the pile is
+    /// worth reading item by item — and the detail list is exactly where a delete is aimed, since
+    /// it is where the file names are. Its ItemsSource is replaced wholesale on every reload, so a
+    /// row cannot animate its own removal: it is animated while it is still in the list, and the
+    /// rebuild waits for it to finish.
+    ///
+    /// Everything touched is put back afterwards. These containers are recycled by the
+    /// virtualising panel, and a leftover opacity of zero would hand the next item an invisible
+    /// row.
+    /// </summary>
+    private async Task AnimateItemsLeavingAsync(IReadOnlyCollection<long> itemIds)
+    {
+        if (itemIds.Count == 0)
+        {
+            return;
+        }
+
+        var list = ItemsList.Visibility == Visibility.Visible ? ItemsList
+            : ThumbnailGrid.Visibility == Visibility.Visible ? ThumbnailGrid
+            : null;
+        if (list is null)
+        {
+            return;   // The stack is showing instead, and it animates its own departures.
+        }
+
+        var containers = _currentViews
+            .Where(v => itemIds.Contains(v.Model.Id))
+            .Select(v => list.ItemContainerGenerator.ContainerFromItem(v) as FrameworkElement)
+            .OfType<FrameworkElement>()
+            .ToList();
+        if (containers.Count == 0)
+        {
+            return;
+        }
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        foreach (var container in containers)
+        {
+            var scale = new ScaleTransform(1, 1);
+            container.RenderTransformOrigin = new Point(0.5, 0.5);
+            container.RenderTransform = scale;
+
+            var shrink = new DoubleAnimation(0.85, RowLeaveDuration) { EasingFunction = ease };
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
+            container.BeginAnimation(OpacityProperty, new DoubleAnimation(0, RowLeaveDuration) { EasingFunction = ease });
+        }
+
+        await Task.Delay(RowLeaveDuration.TimeSpan);
+
+        foreach (var container in containers)
+        {
+            container.BeginAnimation(OpacityProperty, null);
+            container.Opacity = 1;
+            container.RenderTransform = null;
+        }
+    }
+
+    /// <summary>Puts a slot back to its resting state at once, with no animation — for a reset rather than a removal.</summary>
+    private static void ClearSheet(StackSheet sheet)
+    {
+        sheet.LeaveToken++;
+
         sheet.Card.BeginAnimation(OpacityProperty, null);
         sheet.Scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         sheet.Scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        sheet.Translate.BeginAnimation(TranslateTransform.YProperty, null);
         sheet.Card.Opacity = 1;
         sheet.Scale.ScaleX = 1;
         sheet.Scale.ScaleY = 1;
+        sheet.Translate.Y = 0;
 
         sheet.Card.Visibility = Visibility.Collapsed;
         sheet.Card.ToolTip = null;
@@ -524,7 +650,7 @@ public partial class BubbleWindow : Window
     {
         foreach (var sheet in StackSheets)
         {
-            HideSheet(sheet);
+            ClearSheet(sheet);
         }
     }
 
@@ -1259,9 +1385,15 @@ public partial class BubbleWindow : Window
         // nothing, which is the same reason a moved file comes off.
         if (action == QuickActionType.MoveToFolder || IsDelete(action))
         {
-            foreach (var itemResult in result.ItemResults.Where(r => r.Succeeded))
+            var removed = result.ItemResults.Where(r => r.Succeeded).Select(r => r.ShelfItemId).ToList();
+
+            // Before the rows are gone from the list, not after: this is the only moment they
+            // still exist to be animated.
+            await AnimateItemsLeavingAsync(removed);
+
+            foreach (var id in removed)
             {
-                await _app.ShelfSession.RemoveItemAsync(itemResult.ShelfItemId);
+                await _app.ShelfSession.RemoveItemAsync(id);
             }
         }
 
@@ -1291,6 +1423,7 @@ public partial class BubbleWindow : Window
             ? "Xoá tệp này khỏi ổ đĩa?"
             : $"Xoá {itemCount} tệp khỏi ổ đĩa?";
         DeleteConfirm.Visibility = Visibility.Visible;
+        PlayDeleteConfirmOpenAnimation();
         CollapseActions(animate: false);
 
         // The card must not put itself away while it is holding a question.
@@ -1303,13 +1436,62 @@ public partial class BubbleWindow : Window
 
     private void AnswerDelete(QuickActionType? answer)
     {
-        DeleteConfirm.Visibility = Visibility.Collapsed;
+        PlayDeleteConfirmCloseAnimation();
         _suppressDeactivateHide = false;
         RestartAutoHideTimer();
 
         var pending = _deleteChoice;
         _deleteChoice = null;
         pending?.TrySetResult(answer);
+    }
+
+    /// <summary>
+    /// The question fades and grows in, on the same timings as the action panel it replaces —
+    /// they are one panel as far as the eye is concerned, the second appearing where the first
+    /// just folded away, and a hard cut between them reads as a different window opening.
+    ///
+    /// From the middle rather than the bottom edge: this one does not come out of a button.
+    /// </summary>
+    private void PlayDeleteConfirmOpenAnimation()
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        DeleteConfirm.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, new Duration(TimeSpan.FromMilliseconds(110))));
+
+        var grow = new DoubleAnimation(0.94, 1, ActionsOpenDuration) { EasingFunction = ease };
+        DeleteConfirmScale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        DeleteConfirmScale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+    }
+
+    /// <summary>Away faster than it arrived, and hidden only once it has finished — a Collapsed panel cannot animate.</summary>
+    private void PlayDeleteConfirmCloseAnimation()
+    {
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+
+        var fade = new DoubleAnimation(0, ActionsCloseDuration) { EasingFunction = ease };
+        fade.Completed += (_, _) =>
+        {
+            // A second question asked during the close puts _deleteChoice back; hiding here would
+            // put away the question that was just asked.
+            if (_deleteChoice is not null)
+            {
+                return;
+            }
+
+            DeleteConfirm.BeginAnimation(OpacityProperty, null);
+            DeleteConfirmScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            DeleteConfirmScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            DeleteConfirm.Opacity = 1;
+            DeleteConfirmScale.ScaleX = 1;
+            DeleteConfirmScale.ScaleY = 1;
+            DeleteConfirm.Visibility = Visibility.Collapsed;
+        };
+
+        DeleteConfirm.BeginAnimation(OpacityProperty, fade);
+
+        var shrink = new DoubleAnimation(0.96, ActionsCloseDuration) { EasingFunction = ease };
+        DeleteConfirmScale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        DeleteConfirmScale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
     }
 
     private void OnDeleteToRecycleBinClicked(object sender, RoutedEventArgs e) =>
@@ -1355,6 +1537,7 @@ public partial class BubbleWindow : Window
 
         try
         {
+            await AnimateItemsLeavingAsync([view.Model.Id]);
             await _app.ShelfSession.RemoveItemAsync(view.Model.Id);
             await ReloadAsync();
         }
