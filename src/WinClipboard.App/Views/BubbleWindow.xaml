@@ -371,7 +371,12 @@
             -->
             <Border x:Name="DeleteConfirm" Grid.Row="1" Grid.RowSpan="3" Visibility="Collapsed"
                     Background="{StaticResource ScrimStrongBrush}" BorderBrush="{StaticResource SurfaceBorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Margin="0,0,0,2">
+                    BorderThickness="1" CornerRadius="12" Margin="0,0,0,2" RenderTransformOrigin="0.5,0.5">
+                <!-- Origin at the middle, unlike the action panel: this one does not grow out of
+                     a button, it takes the place of the panel that just folded away. -->
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="DeleteConfirmScale" ScaleX="1" ScaleY="1" />
+                </Border.RenderTransform>
                 <StackPanel VerticalAlignment="Center" Margin="18,0">
                     <Viewbox Width="30" Height="30" HorizontalAlignment="Center">
                         <Canvas Width="24" Height="24">
@@ -384,12 +389,42 @@
                                Foreground="{StaticResource TextPrimaryBrush}" FontSize="13"
                                FontWeight="SemiBold" TextAlignment="Center" Margin="0,10,0,0"
                                TextWrapping="Wrap" />
-                    <Button Content="Đưa vào thùng rác" Margin="0,14,0,0"
-                            Style="{StaticResource AccentButtonStyle}" Click="OnDeleteToRecycleBinClicked" />
-                    <Button Content="Xoá vĩnh viễn" Margin="0,8,0,0"
-                            Style="{StaticResource DangerTextButtonStyle}" Click="OnDeletePermanentlyClicked" />
-                    <TextBlock Text="Không khôi phục lại được" Foreground="{StaticResource TextMutedBrush}"
-                               FontSize="10" TextAlignment="Center" Margin="0,4,0,0" />
+                    <!--
+                        The two answers as tiles, laid out like the Quick Action grid above and
+                        sharing its style outright. This question is asked inside the same card,
+                        one gesture after choosing the Xoá tile there — two stacked full-width
+                        bars read as a different control set that had wandered in.
+
+                        Size no longer carries the hierarchy, so order and colour do: the
+                        recoverable answer comes first and is an ordinary tile, the one with no
+                        undo is the red one and carries its warning directly underneath rather
+                        than under both.
+                    -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Button Grid.Row="0" Grid.Column="0" Height="104" Content="Đưa vào thùng rác"
+                                Tag="{StaticResource IconTrash}"
+                                ToolTip="Khôi phục lại được từ Recycle Bin"
+                                Style="{StaticResource BigActionButtonStyle}"
+                                Click="OnDeleteToRecycleBinClicked" />
+                        <Button Grid.Row="0" Grid.Column="1" Height="104" Content="Xoá vĩnh viễn"
+                                Tag="{StaticResource IconTrashPermanent}"
+                                ToolTip="Xoá hẳn khỏi ổ đĩa — không khôi phục lại được"
+                                Style="{StaticResource BigDangerButtonStyle}"
+                                Click="OnDeletePermanentlyClicked" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="Không khôi phục lại được"
+                                   Foreground="{StaticResource TextMutedBrush}" FontSize="10"
+                                   TextAlignment="Center" TextWrapping="Wrap" Margin="4,2,4,0" />
+                    </Grid>
                     <Button Content="Huỷ" Margin="0,12,0,0" Style="{StaticResource PillButtonStyle}"
                             HorizontalAlignment="Center" Click="OnDeleteCancelClicked" />
                 </StackPanel>
